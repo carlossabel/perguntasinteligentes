@@ -2,6 +2,9 @@ import { useState, useMemo } from "react";
 import { ClipboardCheck, Plus, Check, X, Edit3 } from "lucide-react";
 import { VEREDITOS, uid, inputCls, btnTeal, btnGhost, VeredictoChip, Empty, SectionTitle } from "../ui.jsx";
 
+// Vereditos que contam como "sinal" de produto (dor recorrente).
+const SINAL = ["gap", "parcial", "custom"];
+
 export default function Curadoria({ base, saveBase, diag }) {
   const [motivos, setMotivos] = useState({});
   const [editando, setEditando] = useState({});
@@ -21,6 +24,12 @@ export default function Curadoria({ base, saveBase, diag }) {
     setEditando((e) => { const n = { ...e }; delete n[pid]; return n; });
   };
 
+  // Curadoria muda a realidade: reclassifica o veredito de uma opção.
+  const mudarVeredito = (opcaoId, novo) => {
+    const opcoes = base.opcoes.map((o) => o.id === opcaoId ? { ...o, veredito: novo } : o);
+    saveBase({ ...base, opcoes });
+  };
+
   const outros = useMemo(() => {
     const map = {};
     diag.respostas.filter((r) => r.texto_outro && r.texto_outro.trim()).forEach((r) => {
@@ -35,8 +44,8 @@ export default function Curadoria({ base, saveBase, diag }) {
     const acc = {};
     diag.respostas.forEach((r) => {
       const o = base.opcoes.find((x) => x.id === r.opcao_id);
-      if (!o || (o.veredito !== "gap" && o.veredito !== "custom")) return;
-      if (!acc[o.id]) acc[o.id] = { texto: o.texto, veredito: o.veredito, count: 0, funcionalidade: funcName(base.perguntas.find((p) => p.id === o.pergunta_id)?.funcionalidade_id) };
+      if (!o || !SINAL.includes(o.veredito)) return;
+      if (!acc[o.id]) acc[o.id] = { id: o.id, texto: o.texto, veredito: o.veredito, count: 0, funcionalidade: funcName(base.perguntas.find((p) => p.id === o.pergunta_id)?.funcionalidade_id) };
       acc[o.id].count++;
     });
     return Object.values(acc).sort((a, b) => b.count - a.count);
@@ -51,8 +60,59 @@ export default function Curadoria({ base, saveBase, diag }) {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <SectionTitle sub="A memória do sistema. O que você aprova, recusa (com motivo) e promove aqui alimenta as próximas gerações da IA.">Curadoria</SectionTitle>
+      <SectionTitle sub="A memória do sistema. O que você aprova, recusa (com motivo), promove e reclassifica aqui alimenta as próximas gerações da IA.">Curadoria</SectionTitle>
 
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-3">“Outros” recorrentes ({outros.length})</h3>
+        {outros.length === 0 ? <p className="text-sm text-slate-400 py-2">Nada capturado ainda. Respostas “Outro” do diagnóstico caem aqui.</p>
+          : <div className="space-y-2">
+            {outros.map((o, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+                <span className="font-mono text-xs bg-teal-100 text-teal-800 rounded-full px-2 py-0.5">{o.count}×</span>
+                <span className="text-sm text-slate-700 flex-1">{o.texto}</span>
+                <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={() => promoverOutro(o)}><Plus className="w-3 h-3" /> virar opção</button>
+              </div>
+            ))}
+          </div>}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-1">Sinais · gaps, parciais &amp; customs recorrentes ({sinais.length})</h3>
+        <p className="text-xs text-slate-400 mb-3">Mudou de figura? Reclassifique o veredito aqui — some da lista quando deixa de ser dor.</p>
+        {sinais.length === 0 ? <p className="text-sm text-slate-400 py-2">Rode alguns diagnósticos para ver o mercado pedindo o que construir.</p>
+          : <div className="space-y-2">
+            {sinais.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+                <span className="font-mono text-xs bg-slate-200 text-slate-700 rounded-full px-2 py-0.5">{s.count}×</span>
+                <VeredictoChip v={s.veredito} />
+                <span className="text-sm text-slate-700 flex-1">{s.texto} <span className="text-slate-400">· {s.funcionalidade}</span></span>
+                <select
+                  className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-mono outline-none focus:border-teal-500"
+                  value={s.veredito}
+                  onChange={(e) => mudarVeredito(s.id, e.target.value)}
+                  title="Mudar veredito desta opção"
+                >
+                  {Object.keys(VEREDITOS).map((v) => <option key={v} value={v}>{VEREDITOS[v].short}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-3">Recusadas · o “não perguntar” reinjetado na IA ({recusadas.length})</h3>
+        {recusadas.length === 0 ? <p className="text-sm text-slate-400 py-2">Nenhuma pergunta recusada ainda.</p>
+          : <div className="space-y-2">
+            {recusadas.map((p) => (
+              <div key={p.id} className="rounded-lg border border-slate-200 px-3 py-2">
+                <p className="text-sm text-slate-500 line-through">{p.texto}</p>
+                {p.motivo && <p className="text-xs text-red-600 mt-0.5">motivo: {p.motivo}</p>}
+              </div>
+            ))}
+          </div>}
+      </div>
+
+      {/* Fila de sugeridas: por último, como a fila de trabalho pendente. */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
         <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-3">Fila · perguntas sugeridas ({sugeridas.length})</h3>
         {sugeridas.length === 0 ? <Empty icon={ClipboardCheck} title="Fila vazia" hint="Perguntas marcadas como “curar depois” no cadastro aparecem aqui." />
@@ -80,47 +140,6 @@ export default function Curadoria({ base, saveBase, diag }) {
                     </>
                   )}
                 </div>
-              </div>
-            ))}
-          </div>}
-      </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-3">“Outros” recorrentes ({outros.length})</h3>
-        {outros.length === 0 ? <p className="text-sm text-slate-400 py-2">Nada capturado ainda. Respostas “Outro” do diagnóstico caem aqui.</p>
-          : <div className="space-y-2">
-            {outros.map((o, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-                <span className="font-mono text-xs bg-teal-100 text-teal-800 rounded-full px-2 py-0.5">{o.count}×</span>
-                <span className="text-sm text-slate-700 flex-1">{o.texto}</span>
-                <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={() => promoverOutro(o)}><Plus className="w-3 h-3" /> virar opção</button>
-              </div>
-            ))}
-          </div>}
-      </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-3">Sinais · gaps &amp; customs recorrentes ({sinais.length})</h3>
-        {sinais.length === 0 ? <p className="text-sm text-slate-400 py-2">Rode alguns diagnósticos para ver o mercado pedindo o que construir.</p>
-          : <div className="space-y-2">
-            {sinais.map((s, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-                <span className="font-mono text-xs bg-slate-200 text-slate-700 rounded-full px-2 py-0.5">{s.count}×</span>
-                <VeredictoChip v={s.veredito} />
-                <span className="text-sm text-slate-700 flex-1">{s.texto} <span className="text-slate-400">· {s.funcionalidade}</span></span>
-              </div>
-            ))}
-          </div>}
-      </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-3">Recusadas · o “não perguntar” reinjetado na IA ({recusadas.length})</h3>
-        {recusadas.length === 0 ? <p className="text-sm text-slate-400 py-2">Nenhuma pergunta recusada ainda.</p>
-          : <div className="space-y-2">
-            {recusadas.map((p) => (
-              <div key={p.id} className="rounded-lg border border-slate-200 px-3 py-2">
-                <p className="text-sm text-slate-500 line-through">{p.texto}</p>
-                {p.motivo && <p className="text-xs text-red-600 mt-0.5">motivo: {p.motivo}</p>}
               </div>
             ))}
           </div>}

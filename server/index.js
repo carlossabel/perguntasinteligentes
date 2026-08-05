@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import "dotenv/config";
 
-import { load, save } from "./db.js";
+import { load, save, DATA_FILE } from "./db.js";
 import { seedBase } from "./seed.js";
 import { gerarComIA } from "./anthropic.js";
 
@@ -20,7 +20,27 @@ function getData() {
     save(d);
   }
   if (!d.diag) d.diag = { diagnosticos: [], respostas: [] };
+  if (migrarSegmentos(d.base)) save(d);
   return d;
+}
+
+// Migração: bases antigas não têm 'segmentos'. Cria um segmento padrão e
+// pendura todas as áreas nele, para o modelo segmento→área→funcionalidade valer.
+function migrarSegmentos(base) {
+  if (!base) return false;
+  let mudou = false;
+  if (!Array.isArray(base.segmentos)) { base.segmentos = []; mudou = true; }
+  const areasSemSeg = (base.areas || []).filter((a) => !a.segmento_id);
+  if (base.segmentos.length === 0 || areasSemSeg.length > 0) {
+    let padrao = base.segmentos[0];
+    if (!padrao) {
+      padrao = { id: "seg_" + Date.now().toString(36), nome: "Geral" };
+      base.segmentos.push(padrao);
+      mudou = true;
+    }
+    areasSemSeg.forEach((a) => { a.segmento_id = padrao.id; mudou = true; });
+  }
+  return mudou;
 }
 
 // ---- Base de conhecimento (áreas, funcionalidades, perguntas, opções) ----
@@ -80,6 +100,7 @@ if (fs.existsSync(dist)) {
 }
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, "0.0.0.0", () =>
-  console.log(`\n  Diagnóstico de Aderência ouvindo na porta ${PORT}\n`)
-);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`\n  Diagnóstico de Aderência ouvindo na porta ${PORT}`);
+  console.log(`  Dados persistidos em: ${DATA_FILE}\n`);
+});

@@ -4,9 +4,12 @@ import { VEREDITOS, uid, slug, nowISO, inputCls, btnTeal, btnGhost, Label, Secti
 import { generate } from "../api.js";
 
 export default function Cadastro({ base, saveBase, editing, clearEditing }) {
-  const [areaId, setAreaId] = useState(base.areas[0]?.id || "");
+  const segmentos = base.segmentos || [];
+  const [segmentoId, setSegmentoId] = useState(segmentos[0]?.id || "");
+  const [novoSegmento, setNovoSegmento] = useState("");
+  const [areaId, setAreaId] = useState("");
   const [novaArea, setNovaArea] = useState("");
-  const [tema, setTema] = useState("");
+  const [nome, setNome] = useState("");
   const [codigo, setCodigo] = useState("");
   const [desc, setDesc] = useState({ objetivo: "", fluxo: "", beneficio: "", risco: "", limitacoes: "", cadastrar: "" });
   const [perguntas, setPerguntas] = useState([]);
@@ -14,11 +17,22 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const [erro, setErro] = useState("");
   const [ok, setOk] = useState(false);
 
+  const areasDoSegmento = base.areas.filter((a) => a.segmento_id === segmentoId);
+
+  // Mantém a área coerente com o segmento selecionado.
+  useEffect(() => {
+    if (novaArea.trim()) return;
+    if (!areasDoSegmento.find((a) => a.id === areaId)) setAreaId(areasDoSegmento[0]?.id || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segmentoId]);
+
   useEffect(() => {
     if (!editing) return;
     const f = base.funcionalidades.find((x) => x.id === editing);
     if (!f) return;
-    setAreaId(f.area_id); setTema(f.nome); setCodigo(f.codigo);
+    const area = base.areas.find((a) => a.id === f.area_id);
+    if (area?.segmento_id) setSegmentoId(area.segmento_id);
+    setAreaId(f.area_id); setNome(f.nome); setCodigo(f.codigo);
     setDesc({ objetivo: f.objetivo || "", fluxo: f.fluxo || "", beneficio: f.beneficio || "", risco: f.risco || "", limitacoes: f.limitacoes || "", cadastrar: f.cadastrar || "" });
     const pg = base.perguntas.filter((p) => p.funcionalidade_id === f.id).map((p) => ({
       texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar",
@@ -29,18 +43,18 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   }, [editing]);
 
   const resetForm = () => {
-    setTema(""); setCodigo(""); setNovaArea("");
+    setNome(""); setCodigo(""); setNovaArea(""); setNovoSegmento("");
     setDesc({ objetivo: "", fluxo: "", beneficio: "", risco: "", limitacoes: "", cadastrar: "" });
     setPerguntas([]); setErro(""); clearEditing();
   };
 
   const handleIA = async () => {
-    if (!tema.trim()) { setErro("Digite um tema primeiro."); return; }
+    if (!nome.trim()) { setErro("Digite o nome da funcionalidade primeiro."); return; }
     setErro(""); setLoading(true);
     try {
-      const out = await generate(tema.trim(), areaId);
+      const out = await generate(nome.trim(), areaId);
       if (out.descricao) setDesc((d) => ({ ...d, ...out.descricao }));
-      if (!codigo) setCodigo(slug(tema));
+      if (!codigo) setCodigo(slug(nome));
       const novas = (out.perguntas || []).map((p) => ({
         texto: p.pergunta || p.texto || "",
         disposicao: "usar",
@@ -62,11 +76,24 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
 
   const salvar = () => {
     setErro("");
-    if (!tema.trim()) { setErro("A funcionalidade precisa de um nome (tema)."); return; }
+    if (!nome.trim()) { setErro("A funcionalidade precisa de um nome."); return; }
+
+    // 1) Resolve segmento (existente ou novo)
+    let segId = segmentoId, segmentosArr = segmentos;
+    if (novoSegmento.trim()) { segId = uid(); segmentosArr = [...segmentos, { id: segId, nome: novoSegmento.trim() }]; }
+    if (!segId) { setErro("Escolha ou crie um segmento."); return; }
+
+    // 2) Resolve área dentro do segmento
     let aId = areaId, areas = base.areas;
-    if (novaArea.trim()) { aId = uid(); areas = [...areas, { id: aId, nome: novaArea.trim() }]; }
-    if (!aId) { setErro("Escolha ou crie uma área."); return; }
-    const cod = codigo.trim() || slug(tema);
+    if (novaArea.trim()) { aId = uid(); areas = [...areas, { id: aId, nome: novaArea.trim(), segmento_id: segId }]; }
+    if (!aId) { setErro("Escolha ou crie uma área no segmento."); return; }
+    // Se escolheu área existente, garante que ela pertença ao segmento resolvido
+    if (!novaArea.trim()) {
+      const areaSel = areas.find((a) => a.id === aId);
+      if (areaSel && areaSel.segmento_id !== segId) { setErro("A área escolhida não pertence a esse segmento."); return; }
+    }
+
+    const cod = codigo.trim() || slug(nome);
     const dup = base.funcionalidades.find((f) => f.codigo === cod && f.id !== editing);
     if (dup) { setErro(`O código "${cod}" já existe. Ajuste o código (ele é o elo único).`); return; }
 
@@ -75,7 +102,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
 
     if (editing) {
       const fid = editing;
-      funcionalidades = base.funcionalidades.map((f) => f.id === fid ? { ...f, area_id: aId, codigo: cod, nome: tema.trim(), ...desc, atualizado_em: nowISO() } : f);
+      funcionalidades = base.funcionalidades.map((f) => f.id === fid ? { ...f, area_id: aId, codigo: cod, nome: nome.trim(), ...desc, atualizado_em: nowISO() } : f);
       const antigas = base.perguntas.filter((p) => p.funcionalidade_id === fid).map((p) => p.id);
       perguntasArr = base.perguntas.filter((p) => p.funcionalidade_id !== fid);
       opcoesArr = base.opcoes.filter((o) => !antigas.includes(o.pergunta_id));
@@ -86,7 +113,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       });
     } else {
       const fid = uid();
-      funcionalidades = [...base.funcionalidades, { id: fid, area_id: aId, codigo: cod, nome: tema.trim(), ...desc, criado_em: nowISO(), atualizado_em: nowISO() }];
+      funcionalidades = [...base.funcionalidades, { id: fid, area_id: aId, codigo: cod, nome: nome.trim(), ...desc, criado_em: nowISO(), atualizado_em: nowISO() }];
       perguntasArr = [...base.perguntas];
       opcoesArr = [...base.opcoes];
       usaveis.forEach((p) => {
@@ -95,15 +122,15 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
         p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, ordem: idx }));
       });
     }
-    saveBase({ ...base, areas, funcionalidades, perguntas: perguntasArr, opcoes: opcoesArr });
+    saveBase({ ...base, segmentos: segmentosArr, areas, funcionalidades, perguntas: perguntasArr, opcoes: opcoesArr });
     setOk(true); setTimeout(() => setOk(false), 2500);
     resetForm();
   };
 
   return (
     <div className="max-w-3xl mx-auto">
-      <SectionTitle sub="Digite o tema, deixe a IA sugerir e cure antes de salvar. A base fica mais rica a cada cadastro.">
-        {editing ? "Editar funcionalidade" : "Cadastro por tema"}
+      <SectionTitle sub="Escolha o segmento e a área, dê um nome à funcionalidade, deixe a IA sugerir e cure antes de salvar.">
+        {editing ? "Editar funcionalidade" : "Cadastro de funcionalidade"}
       </SectionTitle>
 
       {ok && <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800 flex items-center gap-2"><Check className="w-4 h-4" /> Salvo na base.</div>}
@@ -112,25 +139,35 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <Label>Área</Label>
-            <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-              {base.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+            <Label>Segmento</Label>
+            <select className={inputCls} value={segmentoId} onChange={(e) => { setSegmentoId(e.target.value); setNovaArea(""); }}>
+              {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+            </select>
+            <input className={inputCls + " mt-2"} placeholder="…ou crie um novo segmento" value={novoSegmento} onChange={(e) => setNovoSegmento(e.target.value)} />
+          </div>
+          <div>
+            <Label>Área {novoSegmento.trim() && <span className="text-slate-400 normal-case">(crie uma abaixo p/ o novo segmento)</span>}</Label>
+            <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)} disabled={!!novoSegmento.trim()}>
+              {areasDoSegmento.length === 0 && <option value="">— sem áreas nesse segmento —</option>}
+              {areasDoSegmento.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
             </select>
             <input className={inputCls + " mt-2"} placeholder="…ou crie uma nova área" value={novaArea} onChange={(e) => setNovaArea(e.target.value)} />
           </div>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <Label>Nome da funcionalidade</Label>
+            <div className="flex gap-2">
+              <input className={inputCls} placeholder="ex.: Apontamento de produção" value={nome} onChange={(e) => setNome(e.target.value)} />
+              <button className={btnTeal + " whitespace-nowrap"} onClick={handleIA} disabled={loading}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {loading ? "Gerando…" : "Sugerir com IA"}
+              </button>
+            </div>
+          </div>
           <div>
             <Label>Código (elo único, slug)</Label>
-            <input className={inputCls + " font-mono"} placeholder="auto a partir do tema" value={codigo} onChange={(e) => setCodigo(slug(e.target.value))} />
-          </div>
-        </div>
-        <div>
-          <Label>Tema / nome da funcionalidade</Label>
-          <div className="flex gap-2">
-            <input className={inputCls} placeholder="ex.: Apontamento de produção" value={tema} onChange={(e) => setTema(e.target.value)} />
-            <button className={btnTeal + " whitespace-nowrap"} onClick={handleIA} disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {loading ? "Gerando…" : "Sugerir com IA"}
-            </button>
+            <input className={inputCls + " font-mono"} placeholder="auto a partir do nome" value={codigo} onChange={(e) => setCodigo(slug(e.target.value))} />
           </div>
         </div>
       </div>

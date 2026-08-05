@@ -7,6 +7,7 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
   const diags = [...diag.diagnosticos].reverse();
   const d = diag.diagnosticos.find((x) => x.id === selectedId) || diags[0];
   const areaNome = (id) => base.areas.find((a) => a.id === id)?.nome || "—";
+  const escopoLabel = (x) => x?.escopo_label || (x?.area_id ? "Área · " + areaNome(x.area_id) : "—");
 
   const dados = useMemo(() => {
     if (!d) return null;
@@ -20,7 +21,7 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
     const grupos = {}; VEREDITO_ORDER.forEach((v) => (grupos[v] = []));
     const outros = [];
     itens.forEach((it) => { if (it.veredito === "rever") outros.push(it); else grupos[it.veredito].push(it); });
-    const contagem = {}; ["ok", "atende", "custom", "gap", "rever"].forEach((v) => (contagem[v] = 0));
+    const contagem = {}; ["ok", "atende", "parceira", "parcial", "custom", "gap", "rever"].forEach((v) => (contagem[v] = 0));
     itens.forEach((it) => (contagem[it.veredito] = (contagem[it.veredito] || 0) + 1));
     return { itens, grupos, outros, contagem };
   }, [d, diag.respostas, base]);
@@ -28,8 +29,8 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
   if (!d) return <div className="max-w-3xl mx-auto"><Empty icon={FileText} title="Nenhum diagnóstico ainda" hint="Rode um diagnóstico no bot para gerar o relatório." /></div>;
 
   const copiar = () => {
-    let t = `RELATÓRIO DE ADERÊNCIA\nCliente: ${d.cliente_nome}\nÁrea: ${areaNome(d.area_id)}\nData: ${fmtDate(d.criado_em)}\n\n`;
-    t += `Resumo: atende ${dados.contagem.atende} · customização ${dados.contagem.custom} · não atende ${dados.contagem.gap} · já ok ${dados.contagem.ok}\n`;
+    let t = `RELATÓRIO DE ADERÊNCIA\nCliente: ${d.cliente_nome}\nEscopo: ${escopoLabel(d)}\nData: ${fmtDate(d.criado_em)}\n\n`;
+    t += `Resumo: atende ${dados.contagem.atende} · parceira ${dados.contagem.parceira} · parcial ${dados.contagem.parcial} · customização ${dados.contagem.custom} · não atende ${dados.contagem.gap} · já ok ${dados.contagem.ok}\n`;
     VEREDITO_ORDER.forEach((v) => {
       if (!dados.grupos[v].length) return;
       t += `\n== ${VEREDITOS[v].label.toUpperCase()} ==\n`;
@@ -51,7 +52,7 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <SectionTitle sub={`${d.cliente_nome} · ${areaNome(d.area_id)} · ${fmtDate(d.criado_em)}`}>Relatório de aderência</SectionTitle>
+        <SectionTitle sub={`${d.cliente_nome} · ${escopoLabel(d)} · ${fmtDate(d.criado_em)}`}>Relatório de aderência</SectionTitle>
         <div className="flex items-center gap-2">
           {diags.length > 1 && (
             <select className="rounded-lg border border-slate-300 px-2 py-2 text-sm max-w-xs" value={d.id} onChange={(e) => setSelectedId(e.target.value)}>
@@ -62,8 +63,8 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        {["gap", "custom", "atende", "ok"].map((v) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+        {["gap", "parcial", "custom", "parceira", "atende", "ok"].map((v) => (
           <div key={v} className={`rounded-xl border p-4 ${VEREDITOS[v].chip}`}>
             <div className="text-3xl font-semibold">{dados.contagem[v] || 0}</div>
             <div className="font-mono text-xs uppercase tracking-wider mt-1">{VEREDITOS[v].label}</div>

@@ -1,4 +1,4 @@
-const VEREDITOS_VALIDOS = ["ok", "atende", "custom", "gap", "rever"];
+const VEREDITOS_VALIDOS = ["ok", "atende", "parceira", "parcial", "custom", "gap", "rever"];
 
 function montarPrompt(tema, recusadas) {
   const contexto = recusadas && recusadas.length
@@ -10,7 +10,7 @@ function montarPrompt(tema, recusadas) {
 Devolva dois blocos:
 (1) "descricao" com: objetivo, fluxo (passos numerados em um texto), beneficio, risco (o risco de o cliente NÃO ter isso), limitacoes e cadastrar (pré-requisitos a cadastrar no sistema).
 (2) "perguntas": de 2 a 3 perguntas de múltipla escolha sobre COMO a empresa faz esse processo HOJE (não sobre o sistema atual dela). No máximo 5 opções por pergunta.
-Cada opção tem um veredito: "ok" (já faz bem), "atende" (dor que o software resolve padrão), "custom" (só via customização), "gap" (não atende). Sempre inclua por último a opção "Outro" com veredito "rever".${contexto}
+Cada opção tem um veredito: "ok" (já faz bem), "atende" (dor que o software resolve padrão), "parceira" (resolve, mas via um parceiro/integração, não nativamente), "parcial" (resolve só em parte, resta um gap), "custom" (só via customização), "gap" (não atende). Sempre inclua por último a opção "Outro" com veredito "rever".${contexto}
 
 Responda SOMENTE JSON válido, sem markdown, exatamente neste formato:
 {"descricao":{"objetivo":"","fluxo":"","beneficio":"","risco":"","limitacoes":"","cadastrar":""},"perguntas":[{"pergunta":"","opcoes":[{"texto":"","veredito":"ok|atende|custom|gap|rever"}]}]}`;

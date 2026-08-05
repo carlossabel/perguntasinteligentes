@@ -1,12 +1,14 @@
 /* ---------- Vocabulário de veredito (enum fixo) ---------- */
 export const VEREDITOS = {
   ok:     { label: "Já faz bem",       short: "OK",     desc: "sem dor; fora da proposta", chip: "bg-slate-100 text-slate-600 border-slate-300",       dot: "bg-slate-400" },
-  atende: { label: "Atende (padrão)",  short: "Atende", desc: "resolve de fábrica",         chip: "bg-emerald-100 text-emerald-700 border-emerald-300", dot: "bg-emerald-500" },
-  custom: { label: "Via customização", short: "Custom", desc: "resolve com projeto/custo",  chip: "bg-amber-100 text-amber-800 border-amber-300",       dot: "bg-amber-500" },
-  gap:    { label: "Não atende",       short: "Gap",    desc: "vira roadmap",               chip: "bg-red-100 text-red-700 border-red-300",             dot: "bg-red-500" },
+  atende:   { label: "Atende (padrão)",     short: "Atende",   desc: "resolve de fábrica",        chip: "bg-emerald-100 text-emerald-700 border-emerald-300", dot: "bg-emerald-500" },
+  parceira: { label: "Atende com parceira", short: "Parceira", desc: "resolve via parceiro",      chip: "bg-sky-100 text-sky-700 border-sky-300",             dot: "bg-sky-500" },
+  parcial:  { label: "Atende parcialmente", short: "Parcial",  desc: "resolve em parte",          chip: "bg-orange-100 text-orange-700 border-orange-300",     dot: "bg-orange-500" },
+  custom:   { label: "Via customização",    short: "Custom",   desc: "resolve com projeto/custo", chip: "bg-amber-100 text-amber-800 border-amber-300",       dot: "bg-amber-500" },
+  gap:      { label: "Não atende",          short: "Gap",      desc: "vira roadmap",              chip: "bg-red-100 text-red-700 border-red-300",             dot: "bg-red-500" },
   rever:  { label: "Rever (Outro)",    short: "Rever",  desc: "texto livre → curadoria",    chip: "bg-teal-100 text-teal-700 border-teal-300",          dot: "bg-teal-500" },
 };
-export const VEREDITO_ORDER = ["gap", "custom", "atende", "ok"];
+export const VEREDITO_ORDER = ["gap", "parcial", "custom", "parceira", "atende", "ok"];
 
 /* ---------- Helpers ---------- */
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);

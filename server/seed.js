@@ -2,16 +2,22 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const nowISO = () => new Date().toISOString();
 
 /**
- * Base inicial para o app não nascer vazio: 3 áreas e 3 funcionalidades
- * com uma pergunta aprovada cada (cobrindo todos os vereditos).
+ * Base inicial. Hierarquia: segmento → área → funcionalidade → pergunta → opção.
  */
 export function seedBase() {
-  const aPCP = uid(), aFAT = uid(), aCOMP = uid();
-  const areas = [
-    { id: aPCP, nome: "PCP" },
-    { id: aFAT, nome: "Faturamento" },
-    { id: aCOMP, nome: "Compras" },
+  const sMANUF = uid(), sCOM = uid();
+  const segmentos = [
+    { id: sMANUF, nome: "Manufatura" },
+    { id: sCOM, nome: "Comercial & Fiscal" },
   ];
+
+  const aPCP = uid(), aCOMP = uid(), aFAT = uid();
+  const areas = [
+    { id: aPCP, nome: "PCP", segmento_id: sMANUF },
+    { id: aCOMP, nome: "Compras", segmento_id: sMANUF },
+    { id: aFAT, nome: "Faturamento", segmento_id: sCOM },
+  ];
+
   const funcionalidades = [];
   const perguntas = [];
   const opcoes = [];
@@ -83,5 +89,5 @@ export function seedBase() {
     ],
   }]);
 
-  return { areas, funcionalidades, perguntas, opcoes };
+  return { segmentos, areas, funcionalidades, perguntas, opcoes };
 }
