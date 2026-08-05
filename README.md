@@ -1,2 +1,0 @@
-# perguntasinteligentes
-questionário inteligente
