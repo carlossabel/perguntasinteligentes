@@ -80,4 +80,6 @@ if (fs.existsSync(dist)) {
 }
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`\n  Diagnóstico de Aderência → http://localhost:${PORT}\n`));
+app.listen(PORT, "0.0.0.0", () =>
+  console.log(`\n  Diagnóstico de Aderência ouvindo na porta ${PORT}\n`)
+);
