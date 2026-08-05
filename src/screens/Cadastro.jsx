@@ -1,0 +1,200 @@
+import { useState, useEffect } from "react";
+import { Sparkles, Plus, Trash2, Check, X, Loader2, AlertTriangle } from "lucide-react";
+import { VEREDITOS, uid, slug, nowISO, inputCls, btnTeal, btnGhost, Label, SectionTitle } from "../ui.jsx";
+import { generate } from "../api.js";
+
+export default function Cadastro({ base, saveBase, editing, clearEditing }) {
+  const [areaId, setAreaId] = useState(base.areas[0]?.id || "");
+  const [novaArea, setNovaArea] = useState("");
+  const [tema, setTema] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [desc, setDesc] = useState({ objetivo: "", fluxo: "", beneficio: "", risco: "", limitacoes: "", cadastrar: "" });
+  const [perguntas, setPerguntas] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState("");
+  const [ok, setOk] = useState(false);
+
+  useEffect(() => {
+    if (!editing) return;
+    const f = base.funcionalidades.find((x) => x.id === editing);
+    if (!f) return;
+    setAreaId(f.area_id); setTema(f.nome); setCodigo(f.codigo);
+    setDesc({ objetivo: f.objetivo || "", fluxo: f.fluxo || "", beneficio: f.beneficio || "", risco: f.risco || "", limitacoes: f.limitacoes || "", cadastrar: f.cadastrar || "" });
+    const pg = base.perguntas.filter((p) => p.funcionalidade_id === f.id).map((p) => ({
+      texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar",
+      opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem).map((o) => ({ texto: o.texto, veredito: o.veredito })),
+    }));
+    setPerguntas(pg);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
+  const resetForm = () => {
+    setTema(""); setCodigo(""); setNovaArea("");
+    setDesc({ objetivo: "", fluxo: "", beneficio: "", risco: "", limitacoes: "", cadastrar: "" });
+    setPerguntas([]); setErro(""); clearEditing();
+  };
+
+  const handleIA = async () => {
+    if (!tema.trim()) { setErro("Digite um tema primeiro."); return; }
+    setErro(""); setLoading(true);
+    try {
+      const out = await generate(tema.trim(), areaId);
+      if (out.descricao) setDesc((d) => ({ ...d, ...out.descricao }));
+      if (!codigo) setCodigo(slug(tema));
+      const novas = (out.perguntas || []).map((p) => ({
+        texto: p.pergunta || p.texto || "",
+        disposicao: "usar",
+        opcoes: (p.opcoes || []).map((o) => ({ texto: o.texto || "", veredito: VEREDITOS[o.veredito] ? o.veredito : "rever" })),
+      }));
+      setPerguntas((cur) => [...cur, ...novas]);
+    } catch (e) {
+      setErro("Não consegui gerar automaticamente. Preencha manualmente. (" + e.message + ")");
+    } finally { setLoading(false); }
+  };
+
+  const addPerguntaManual = () =>
+    setPerguntas((p) => [...p, { texto: "", disposicao: "usar", opcoes: [{ texto: "", veredito: "atende" }, { texto: "Outro", veredito: "rever" }] }]);
+  const updPergunta = (i, patch) => setPerguntas((p) => p.map((q, k) => (k === i ? { ...q, ...patch } : q)));
+  const updOpcao = (pi, oi, patch) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: q.opcoes.map((o, j) => (j === oi ? { ...o, ...patch } : o)) } : q)));
+  const addOpcao = (pi) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: [...q.opcoes, { texto: "", veredito: "atende" }] } : q)));
+  const rmOpcao = (pi, oi) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: q.opcoes.filter((_, j) => j !== oi) } : q)));
+  const rmPergunta = (i) => setPerguntas((p) => p.filter((_, k) => k !== i));
+
+  const salvar = () => {
+    setErro("");
+    if (!tema.trim()) { setErro("A funcionalidade precisa de um nome (tema)."); return; }
+    let aId = areaId, areas = base.areas;
+    if (novaArea.trim()) { aId = uid(); areas = [...areas, { id: aId, nome: novaArea.trim() }]; }
+    if (!aId) { setErro("Escolha ou crie uma área."); return; }
+    const cod = codigo.trim() || slug(tema);
+    const dup = base.funcionalidades.find((f) => f.codigo === cod && f.id !== editing);
+    if (dup) { setErro(`O código "${cod}" já existe. Ajuste o código (ele é o elo único).`); return; }
+
+    const usaveis = perguntas.filter((p) => p.disposicao !== "descartar" && p.texto.trim());
+    let funcionalidades, perguntasArr, opcoesArr;
+
+    if (editing) {
+      const fid = editing;
+      funcionalidades = base.funcionalidades.map((f) => f.id === fid ? { ...f, area_id: aId, codigo: cod, nome: tema.trim(), ...desc, atualizado_em: nowISO() } : f);
+      const antigas = base.perguntas.filter((p) => p.funcionalidade_id === fid).map((p) => p.id);
+      perguntasArr = base.perguntas.filter((p) => p.funcionalidade_id !== fid);
+      opcoesArr = base.opcoes.filter((o) => !antigas.includes(o.pergunta_id));
+      usaveis.forEach((p) => {
+        const pid = uid();
+        perguntasArr.push({ id: pid, funcionalidade_id: fid, texto: p.texto.trim(), origem: "humano", status: p.disposicao === "usar" ? "aprovada" : "sugerida", motivo: "", avaliado_por: "consultor", criado_em: nowISO() });
+        p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, ordem: idx }));
+      });
+    } else {
+      const fid = uid();
+      funcionalidades = [...base.funcionalidades, { id: fid, area_id: aId, codigo: cod, nome: tema.trim(), ...desc, criado_em: nowISO(), atualizado_em: nowISO() }];
+      perguntasArr = [...base.perguntas];
+      opcoesArr = [...base.opcoes];
+      usaveis.forEach((p) => {
+        const pid = uid();
+        perguntasArr.push({ id: pid, funcionalidade_id: fid, texto: p.texto.trim(), origem: "ia", status: p.disposicao === "usar" ? "aprovada" : "sugerida", motivo: "", avaliado_por: "consultor", criado_em: nowISO() });
+        p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, ordem: idx }));
+      });
+    }
+    saveBase({ ...base, areas, funcionalidades, perguntas: perguntasArr, opcoes: opcoesArr });
+    setOk(true); setTimeout(() => setOk(false), 2500);
+    resetForm();
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <SectionTitle sub="Digite o tema, deixe a IA sugerir e cure antes de salvar. A base fica mais rica a cada cadastro.">
+        {editing ? "Editar funcionalidade" : "Cadastro por tema"}
+      </SectionTitle>
+
+      {ok && <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800 flex items-center gap-2"><Check className="w-4 h-4" /> Salvo na base.</div>}
+      {erro && <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> {erro}</div>}
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <Label>Área</Label>
+            <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+              {base.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+            </select>
+            <input className={inputCls + " mt-2"} placeholder="…ou crie uma nova área" value={novaArea} onChange={(e) => setNovaArea(e.target.value)} />
+          </div>
+          <div>
+            <Label>Código (elo único, slug)</Label>
+            <input className={inputCls + " font-mono"} placeholder="auto a partir do tema" value={codigo} onChange={(e) => setCodigo(slug(e.target.value))} />
+          </div>
+        </div>
+        <div>
+          <Label>Tema / nome da funcionalidade</Label>
+          <div className="flex gap-2">
+            <input className={inputCls} placeholder="ex.: Apontamento de produção" value={tema} onChange={(e) => setTema(e.target.value)} />
+            <button className={btnTeal + " whitespace-nowrap"} onClick={handleIA} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {loading ? "Gerando…" : "Sugerir com IA"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="font-mono text-xs uppercase tracking-widest text-slate-400">Descreve o resultado</span>
+          <span className="text-xs text-slate-400">— não decide o veredito, escreve o relatório</span>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {[["objetivo", "Objetivo"], ["fluxo", "Fluxo (passos)"], ["beneficio", "Benefício → ganho"], ["risco", "Risco → urgência"], ["limitacoes", "Limitações → gancho de custom"], ["cadastrar", "O que cadastrar"]].map(([k, l]) => (
+            <div key={k}>
+              <Label>{l}</Label>
+              <textarea className={inputCls + " resize-y"} style={{ minHeight: 64 }} value={desc[k]} onChange={(e) => setDesc((d) => ({ ...d, [k]: e.target.value }))} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <span className="font-mono text-xs uppercase tracking-widest text-teal-700">Decide o resultado</span>
+            <span className="text-xs text-slate-400 ml-2">— o veredito mora em cada opção</span>
+          </div>
+          <button className={btnGhost} onClick={addPerguntaManual}><Plus className="w-4 h-4" /> Pergunta</button>
+        </div>
+
+        {perguntas.length === 0 && <p className="text-sm text-slate-400 py-4 text-center">Nenhuma pergunta ainda. Gere com a IA ou adicione manualmente.</p>}
+
+        <div className="space-y-4">
+          {perguntas.map((p, pi) => (
+            <div key={pi} className={`rounded-xl border p-4 ${p.disposicao === "descartar" ? "opacity-40 border-slate-200" : "border-slate-200 bg-slate-50"}`}>
+              <div className="flex items-start gap-2 mb-3">
+                <input className={inputCls} placeholder="Como a empresa faz isso hoje?" value={p.texto} onChange={(e) => updPergunta(pi, { texto: e.target.value })} />
+                <button className="p-2 text-slate-400 hover:text-red-600" onClick={() => rmPergunta(pi)}><Trash2 className="w-4 h-4" /></button>
+              </div>
+              <div className="flex gap-1.5 mb-3">
+                {[["usar", "Usar → aprovada"], ["curar", "Curar depois"], ["descartar", "Descartar"]].map(([v, l]) => (
+                  <button key={v} onClick={() => updPergunta(pi, { disposicao: v })}
+                    className={`text-xs font-mono uppercase tracking-wider rounded-full px-2.5 py-1 border transition ${p.disposicao === v ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-500 border-slate-300 hover:border-teal-400"}`}>{l}</button>
+                ))}
+              </div>
+              <div className="space-y-2">
+                {p.opcoes.map((o, oi) => (
+                  <div key={oi} className="flex items-center gap-2">
+                    <input className={inputCls} placeholder="Texto da opção" value={o.texto} onChange={(e) => updOpcao(pi, oi, { texto: e.target.value })} />
+                    <select className="rounded-lg border border-slate-300 px-2 py-2 text-xs font-mono outline-none focus:border-teal-500" value={o.veredito} onChange={(e) => updOpcao(pi, oi, { veredito: e.target.value })}>
+                      {Object.keys(VEREDITOS).map((v) => <option key={v} value={v}>{VEREDITOS[v].short}</option>)}
+                    </select>
+                    <button className="p-2 text-slate-400 hover:text-red-600" onClick={() => rmOpcao(pi, oi)}><X className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={() => addOpcao(pi)}><Plus className="w-3 h-3" /> opção</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 flex justify-end gap-2">
+        {editing && <button className={btnGhost} onClick={resetForm}>Cancelar edição</button>}
+        <button className={btnTeal} onClick={salvar}><Check className="w-4 h-4" /> {editing ? "Salvar alterações" : "Salvar na base"}</button>
+      </div>
+    </div>
+  );
+}
