@@ -26,11 +26,30 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
     return { itens, grupos, outros, contagem };
   }, [d, diag.respostas, base]);
 
+  // Risco de implantação: vem só dos vereditos técnicos. atende/ok = 0.
+  const risco = useMemo(() => {
+    if (!dados) return null;
+    const P = { gap: 1, custom: 0.5, parcial: 0.4, parceira: 0.25, atende: 0, ok: 0 };
+    const c = dados.contagem;
+    const avaliados = c.gap + c.custom + c.parcial + c.parceira + c.atende + c.ok; // exclui "rever" (Outro)
+    if (!avaliados) return null;
+    const soma = c.gap * P.gap + c.custom * P.custom + c.parcial * P.parcial + c.parceira * P.parceira;
+    const pct = Math.round((soma / avaliados) * 100);
+    const faixa = pct >= 60 ? "Alto" : pct >= 30 ? "Médio" : "Baixo";
+    const partes = [];
+    if (c.gap) partes.push(`${c.gap} não atende`);
+    if (c.custom) partes.push(`${c.custom} customização${c.custom > 1 ? "ões" : ""}`);
+    if (c.parcial) partes.push(`${c.parcial} parcial${c.parcial > 1 ? "is" : ""}`);
+    if (c.parceira) partes.push(`${c.parceira} via parceiro`);
+    return { pct, faixa, avaliados, partes };
+  }, [dados]);
+
   if (!d) return <div className="max-w-3xl mx-auto"><Empty icon={FileText} title="Nenhum diagnóstico ainda" hint="Rode um diagnóstico no bot para gerar o relatório." /></div>;
 
   const copiar = () => {
     let t = `RELATÓRIO DE ADERÊNCIA\nCliente: ${d.cliente_nome}\nEscopo: ${escopoLabel(d)}\nData: ${fmtDate(d.criado_em)}\n\n`;
     t += `Resumo: atende ${dados.contagem.atende} · parceira ${dados.contagem.parceira} · parcial ${dados.contagem.parcial} · customização ${dados.contagem.custom} · não atende ${dados.contagem.gap} · já ok ${dados.contagem.ok}\n`;
+    if (risco) t += `Risco de implantação: ${risco.faixa} (${risco.pct}%${risco.partes.length ? " · " + risco.partes.join(" + ") : ""})\n`;
     VEREDITO_ORDER.forEach((v) => {
       if (!dados.grupos[v].length) return;
       t += `\n== ${VEREDITOS[v].label.toUpperCase()} ==\n`;
@@ -62,6 +81,18 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
           <button className={btnGhost} onClick={copiar}>{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}{copied ? "Copiado" : "Copiar"}</button>
         </div>
       </div>
+
+      {risco && (
+        <div className={`rounded-xl border p-4 mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 ${risco.faixa === "Alto" ? "bg-red-50 border-red-300" : risco.faixa === "Médio" ? "bg-amber-50 border-amber-300" : "bg-emerald-50 border-emerald-300"}`}>
+          <div>
+            <div className="font-mono text-xs uppercase tracking-widest text-slate-500">Risco de implantação</div>
+            <div className={`text-2xl font-semibold ${risco.faixa === "Alto" ? "text-red-700" : risco.faixa === "Médio" ? "text-amber-800" : "text-emerald-700"}`}>{risco.faixa}</div>
+          </div>
+          <div className="text-sm text-slate-600">
+            {risco.pct}% do risco máximo · {risco.partes.length ? `${risco.partes.join(" + ")} de ${risco.avaliados} itens` : "tudo coberto pelo sistema"}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
         {["gap", "parcial", "custom", "parceira", "atende", "ok"].map((v) => (
