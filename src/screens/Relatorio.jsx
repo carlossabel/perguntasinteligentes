@@ -63,6 +63,30 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
   if (!d) return <div className="max-w-3xl mx-auto"><Empty icon={FileText} title="Nenhum diagnóstico ainda" hint="Rode um diagnóstico no bot para gerar o relatório." /></div>;
 
   const linhas = dados ? dados.itens.filter((it) => it.veredito !== "rever").slice().sort((a, b) => ORDEM_VENDA.indexOf(a.veredito) - ORDEM_VENDA.indexOf(b.veredito)) : [];
+
+  // Dados da empresa (snapshot do diagnóstico, com fallback na empresa vinculada)
+  const dadosEmpresa = (d && (d.dados || (diag.empresas || []).find((e) => e.id === d.empresa_id)?.dados)) || {};
+  const campos = [...(base.camposEmpresa || [])].sort((a, b) => a.ordem - b.ordem).filter((c) => String(dadosEmpresa[c.id] || "").trim());
+
+  // Oportunidades (das perguntas iniciais) × o que o técnico concluiu sobre cada funcionalidade
+  const CRIT = ["gap", "custom", "parcial", "parceira", "atende", "ok"]; // do mais crítico ao melhor
+  const vereditoPorFunc = {};
+  (dados?.itens || []).forEach((it) => {
+    const fid = it.f?.id; if (!fid) return;
+    if (!(fid in vereditoPorFunc) || CRIT.indexOf(it.veredito) < CRIT.indexOf(vereditoPorFunc[fid])) vereditoPorFunc[fid] = it.veredito;
+  });
+  const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
+  const oportunidades = (d?.oportunidades || []);
+  const cruzamentoLabel = (v) => {
+    switch (v) {
+      case "gap": return "lacuna nossa hoje → oportunidade forte";
+      case "custom": return "atendemos via customização";
+      case "parcial": return "atendemos parcialmente";
+      case "parceira": return "atendemos via parceiro";
+      case "atende": case "ok": return "já atendemos";
+      default: return "não avaliada no diagnóstico técnico";
+    }
+  };
   const sintese = (() => {
     if (!dados) return "";
     const c = dados.contagem;
@@ -79,7 +103,12 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
 
   const copiar = () => {
     let t = `RELATÓRIO DE ADERÊNCIA\nCliente: ${d.cliente_nome}\nEscopo: ${escopoLabel(d)}\nData: ${fmtDate(d.criado_em)}\n\n`;
+    if (campos.length) { t += `DADOS DA EMPRESA\n`; campos.forEach((c) => (t += `  ${c.label}: ${dadosEmpresa[c.id]}\n`)); t += `\n`; }
     t += sintese + "\n";
+    if (oportunidades.length) {
+      t += `\nOPORTUNIDADES LEVANTADAS (perguntas iniciais)${d.maturidade != null ? ` · maturidade ${d.maturidade}/100` : ""}\n`;
+      oportunidades.forEach((fid) => (t += `  • ${funcNome(fid)} — ${cruzamentoLabel(vereditoPorFunc[fid])}\n`));
+    }
     t += `\nResumo: atende ${dados.contagem.atende} · parceira ${dados.contagem.parceira} · parcial ${dados.contagem.parcial} · customização ${dados.contagem.custom} · não atende ${dados.contagem.gap} · já ok ${dados.contagem.ok}\n`;
     t += `\n— COMO É HOJE  →  COMO PODEMOS ATENDER —\n`;
     linhas.forEach((it) => {
@@ -116,7 +145,41 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
         </div>
       )}
 
+      {campos.length > 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 mb-5">
+          <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Dados da empresa</h3>
+          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
+            {campos.map((c) => (
+              <div key={c.id} className="flex justify-between text-sm border-b border-slate-100 py-1">
+                <span className="text-slate-500">{c.label}</span><span className="text-slate-800 font-medium">{dadosEmpresa[c.id]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {sintese && <p className="text-sm text-slate-600 mb-5 leading-relaxed">{sintese}</p>}
+
+      {oportunidades.length > 0 && (
+        <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-mono text-xs uppercase tracking-widest text-teal-700">Oportunidades levantadas · perguntas iniciais</h3>
+            {d.maturidade != null && <span className="text-xs text-slate-500">maturidade {d.maturidade}/100</span>}
+          </div>
+          <div className="space-y-1.5">
+            {oportunidades.map((fid) => {
+              const v = vereditoPorFunc[fid];
+              return (
+                <div key={fid} className="flex items-center gap-2 text-sm">
+                  {v ? <VeredictoChip v={v} /> : <span className="font-mono text-[11px] bg-slate-100 text-slate-400 rounded px-1.5 py-0.5">—</span>}
+                  <span className="text-slate-800 font-medium">{funcNome(fid)}</span>
+                  <span className="text-slate-500">· {cruzamentoLabel(v)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
         {["gap", "parcial", "custom", "parceira", "atende", "ok"].map((v) => (
