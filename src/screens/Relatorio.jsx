@@ -55,13 +55,7 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
       t += `\n== ${VEREDITOS[v].label.toUpperCase()} ==\n`;
       dados.grupos[v].forEach((it) => {
         t += `\n• ${it.f?.nome} [${VEREDITOS[v].short}]\n  Hoje: ${it.p?.texto} → ${it.o?.texto}\n`;
-        if (v !== "ok") {
-          if (it.f?.risco) t += `  Por que importa: ${it.f.risco}\n`;
-          if (it.f?.beneficio) t += `  Ganho: ${it.f.beneficio}\n`;
-          if (it.f?.objetivo) t += `  Como fica: ${it.f.objetivo} ${it.f.fluxo || ""}\n`;
-          if (v === "custom" && it.f?.limitacoes) t += `  Ressalva/custom: ${it.f.limitacoes}\n`;
-          if (it.f?.cadastrar) t += `  Preparar: ${it.f.cadastrar}\n`;
-        }
+        if (v === "atende" && it.f?.como_atende) t += `  Como atende: ${it.f.como_atende}\n`;
       });
     });
     if (dados.outros.length) { t += `\n== VOLTA PARA CURADORIA (Outros) ==\n`; dados.outros.forEach((it) => (t += `• ${it.f?.nome}: ${it.r.texto_outro}\n`)); }
@@ -118,14 +112,8 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
                     <VeredictoChip v={v} />
                   </div>
                   <p className="text-sm text-slate-500 mb-3"><span className="font-mono text-xs uppercase tracking-wider text-slate-400">Hoje</span> · {it.p?.texto} → <span className="text-slate-700 font-medium">{it.o?.texto}</span></p>
-                  {v !== "ok" && (
-                    <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                      {it.f?.risco && <Field l="Por que importa">{it.f.risco}</Field>}
-                      {it.f?.beneficio && <Field l="Ganho">{it.f.beneficio}</Field>}
-                      {(it.f?.objetivo || it.f?.fluxo) && <Field l="Como fica (TO-BE)">{[it.f?.objetivo, it.f?.fluxo].filter(Boolean).join(" ")}</Field>}
-                      {v === "custom" && it.f?.limitacoes && <Field l="Ressalva / customização">{it.f.limitacoes}</Field>}
-                      {it.f?.cadastrar && <Field l="Preparar no sistema">{it.f.cadastrar}</Field>}
-                    </div>
+                  {v === "atende" && it.f?.como_atende && (
+                    <div className="text-sm"><Field l="Como atende">{it.f.como_atende}</Field></div>
                   )}
                 </div>
               ))}

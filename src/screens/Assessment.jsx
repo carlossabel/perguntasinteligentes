@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Gauge, Plus, Trash2, Check, X, ChevronRight, ChevronUp, ChevronDown, ListChecks, PencilLine, Play, Building2, Layers, Sparkles, Loader2, Pause } from "lucide-react";
+import { Gauge, Plus, Trash2, Check, X, ChevronRight, ChevronUp, ChevronDown, ListChecks, PencilLine, Play, Building2, Layers, Pause } from "lucide-react";
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
-import { generateAssessment } from "../api.js";
 
 const NIVEIS = [
   { v: 0, l: "Imaturo (0)" },
@@ -208,50 +207,7 @@ function CadastroPerguntas({ base, saveBase, segId }) {
   const [opcoes, setOpcoes] = useState([{ texto: "", nivel: 4, oportunidades: [] }, { texto: "", nivel: 0, oportunidades: [] }]);
   const [erro, setErro] = useState("");
   const [editId, setEditId] = useState(null);
-  const [postura, setPostura] = useState(base.iaPosturaAssessment || "");
-  const [iaLoading, setIaLoading] = useState(false);
-  const [iaErro, setIaErro] = useState("");
-  const [showDica, setShowDica] = useState(false);
   const formRef = useRef(null);
-
-  const iaCount = (base.assessmentPerguntas || []).filter((p) => p.segmento_id === segId && p.origem === "ia").length;
-
-  const limparIA = () => {
-    if (!iaCount) return;
-    if (!confirm(`Remover as ${iaCount} sugestões da IA deste segmento? (as perguntas que você editou/criou permanecem)`)) return;
-    const idsIA = new Set(base.assessmentPerguntas.filter((p) => p.segmento_id === segId && p.origem === "ia").map((p) => p.id));
-    saveBase({
-      ...base,
-      assessmentPerguntas: base.assessmentPerguntas.filter((p) => !idsIA.has(p.id)),
-      assessmentOpcoes: base.assessmentOpcoes.filter((o) => !idsIA.has(o.pergunta_id)),
-    });
-  };
-
-  const salvarPostura = () => {
-    if ((base.iaPosturaAssessment || "") === postura) return;
-    saveBase({ ...base, iaPosturaAssessment: postura });
-  };
-
-  const sugerirIA = async () => {
-    setIaErro("");
-    if (!segId) { setIaErro("Escolha um segmento."); return; }
-    setIaLoading(true);
-    try {
-      const out = await generateAssessment(segId);
-      const novasP = [];
-      const novasO = [];
-      let ordem = perguntas.length;
-      (out.perguntas || []).forEach((p) => {
-        const pid = uid();
-        novasP.push({ id: pid, segmento_id: segId, texto: p.pergunta, origem: "ia", ordem: ordem++ });
-        (p.opcoes || []).forEach((o, i) => novasO.push({ id: uid(), pergunta_id: pid, texto: o.texto, nivel: Number(o.nivel) || 0, oportunidades: o.oportunidades || [], ordem: i }));
-      });
-      if (!novasP.length) { setIaErro("A IA não retornou perguntas. Tente de novo."); return; }
-      saveBase({ ...base, assessmentPerguntas: [...(base.assessmentPerguntas || []), ...novasP], assessmentOpcoes: [...(base.assessmentOpcoes || []), ...novasO] });
-    } catch (e) {
-      setIaErro("Não consegui gerar. (" + e.message + ")");
-    } finally { setIaLoading(false); }
-  };
 
   const perguntas = (base.assessmentPerguntas || []).filter((p) => p.segmento_id === segId).sort((a, b) => a.ordem - b.ordem);
   const opcoesDe = (pid) => (base.assessmentOpcoes || []).filter((o) => o.pergunta_id === pid).sort((a, b) => a.ordem - b.ordem);
@@ -297,33 +253,6 @@ function CadastroPerguntas({ base, saveBase, segId }) {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <Label>Postura da IA ao sugerir perguntas</Label>
-          <button className="text-xs text-teal-700 hover:underline" onClick={() => setShowDica((v) => !v)}>como escrever uma boa postura?</button>
-        </div>
-        {showDica && (
-          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 space-y-1">
-            <p>Uma boa postura evita perguntas rasas e alucinação. Inclua:</p>
-            <p>• <b>Quem</b> a IA é e <b>com quem</b> fala (ex.: consultor sênior conversando com o diretor de operações de uma indústria de médio porte).</p>
-            <p>• O <b>foco</b>: dinâmica do negócio, gargalos, maturidade dos processos — não telas de sistema.</p>
-            <p>• O que <b>evitar</b>: perguntas óbvias, de sim/não trivial, ou que presumam dados do cliente.</p>
-            <p>• Peça perguntas que <b>diferenciem níveis de maturidade</b> e toquem em nuances reais do segmento.</p>
-            <p className="text-slate-400">Obs.: o sistema já força, por baixo, que o cliente é uma indústria de médio porte e que a IA nunca faça perguntas básicas — sua postura afina o tom em cima disso.</p>
-          </div>
-        )}
-        <textarea className={inputCls + " resize-y"} style={{ minHeight: 60 }} value={postura} onChange={(e) => setPostura(e.target.value)} onBlur={salvarPostura} placeholder="Ex.: consultor sênior de indústria, foco macro em gargalos e maturidade…" />
-        {iaErro && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{iaErro}</div>}
-        <div className="flex justify-end gap-2">
-          {iaCount > 0 && <button className={btnGhost} onClick={limparIA}><Trash2 className="w-4 h-4" /> Limpar sugestões da IA ({iaCount})</button>}
-          <button className={btnTeal} onClick={sugerirIA} disabled={iaLoading}>
-            {iaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {iaLoading ? "Gerando…" : "Sugerir perguntas com IA"}
-          </button>
-        </div>
-        <p className="text-xs text-slate-400">A IA gera perguntas macro de maturidade, já com o grau de cada opção e as oportunidades que ela acende. Elas entram na lista abaixo para você editar/remover.</p>
-      </div>
-
       {perguntas.length > 0 && (
         <div className="space-y-2">
           <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400">Perguntas do segmento ({perguntas.length})</h3>

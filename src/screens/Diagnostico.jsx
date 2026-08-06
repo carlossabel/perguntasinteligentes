@@ -23,6 +23,8 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   const [empresaId, setEmpresaId] = useState(empresas[0]?.id || "__nova");
   const [novaEmpresa, setNovaEmpresa] = useState("");
   const [segId, setSegId] = useState(segmentos[0]?.id || "");
+  const [escopo, setEscopo] = useState("todas");
+  const [customIds, setCustomIds] = useState([]);
   const [dados, setDados] = useState(empresas[0]?.dados ? { ...empresas[0].dados } : {});
   const [filtroArea, setFiltroArea] = useState("");
   const [outroAberto, setOutroAberto] = useState(false);
@@ -77,12 +79,21 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
     else { const e = empresas.find((x) => x.id === id); setDados(e?.dados ? { ...e.dados } : {}); }
   };
 
-  const montarItens = (sid) => {
-    const iniciais = (base.assessmentPerguntas || []).filter((p) => p.segmento_id === sid).sort((a, b) => a.ordem - b.ordem).map((p) => ({ pergunta_id: p.id, tipo: "inicial" }));
-    const funcIds = base.funcionalidades.filter((f) => (f.segmento_ids || []).includes(sid)).map((f) => f.id);
-    const tecnicas = base.perguntas.filter((p) => funcIds.includes(p.funcionalidade_id) && p.status === "aprovada").map((p) => ({ pergunta_id: p.id, tipo: "tecnica" }));
+  const funcsDoSegmento = (sid) => base.funcionalidades.filter((f) => (f.segmento_ids || []).includes(sid));
+  const montarItens = (sid, esc, custom) => {
+    const iniciais = esc === "custom" ? [] : (base.assessmentPerguntas || []).filter((p) => p.segmento_id === sid).sort((a, b) => a.ordem - b.ordem).map((p) => ({ pergunta_id: p.id, tipo: "inicial" }));
+    let funcIds = [];
+    if (esc === "todas") funcIds = funcsDoSegmento(sid).map((f) => f.id);
+    else if (esc === "custom") funcIds = custom || [];
+    const tecnicas = esc === "iniciais" ? [] : base.perguntas.filter((p) => funcIds.includes(p.funcionalidade_id) && p.status === "aprovada").map((p) => ({ pergunta_id: p.id, tipo: "tecnica" }));
     return { itens: [...iniciais, ...tecnicas], funcIds, nIniciais: iniciais.length, nTecnicas: tecnicas.length };
   };
+  const rotuloEscopo = (sid, esc, custom) => {
+    if (esc === "iniciais") return "Segmento · " + segNome(sid) + " · perguntas iniciais";
+    if (esc === "custom") return `Customizado · ${(custom || []).length} funcionalidade${(custom || []).length === 1 ? "" : "s"}`;
+    return "Segmento · " + segNome(sid) + " · completo";
+  };
+  const toggleCustom = (fid) => setCustomIds((c) => c.includes(fid) ? c.filter((x) => x !== fid) : [...c, fid]);
 
   const iniciar = () => {
     setErro("");
@@ -100,15 +111,16 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
     }
     const faltando = camposOrdenados(base).filter((c) => c.obrigatorio && !String(dados[c.id] || "").trim());
     if (faltando.length) { setErro("Preencha os campos obrigatórios: " + faltando.map((c) => c.label).join(", ") + "."); return; }
-    const { itens: novosItens, funcIds } = montarItens(segId);
-    if (!novosItens.length) { setErro("Esse segmento não tem perguntas iniciais nem técnicas aprovadas. Cadastre antes."); return; }
+    if (escopo === "custom" && customIds.length === 0) { setErro("Escolha ao menos uma funcionalidade no escopo customizado."); return; }
+    const { itens: novosItens, funcIds } = montarItens(segId, escopo, customIds);
+    if (!novosItens.length) { setErro("Esse escopo não tem perguntas aprovadas. Cadastre antes."); return; }
     const rec = {
       id: uid(), empresa_id: empresa.id, cliente_nome: empresa.nome, segmento_id: segId,
-      escopo_label: "Segmento · " + segNome(segId), dados: { ...dados },
+      escopo, escopo_label: rotuloEscopo(segId, escopo, customIds), dados: { ...dados },
       itens: novosItens, func_ids: funcIds, status: "em_andamento", criado_em: nowISO(),
     };
     saveDiag({ ...diag, empresas: listaEmpresas, diagnosticos: [...diagnosticos, rec] });
-    setActiveId(rec.id); setOutroAberto(false); setTextoOutro(""); setNovaEmpresa(""); setDados({}); setEmpresaId(empresa.id);
+    setActiveId(rec.id); setOutroAberto(false); setTextoOutro(""); setNovaEmpresa(""); setDados({}); setEmpresaId(empresa.id); setCustomIds([]);
   };
 
   const escolher = (opcao) => {
@@ -137,7 +149,7 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   };
 
   const incluirNovas = () => {
-    const { funcIds } = montarItens(sessao.segmento_id);
+    const funcIds = sessao.func_ids || [];
     const existentes = new Set((sessao.itens || []).map((it) => it.pergunta_id));
     const novas = base.perguntas.filter((p) => funcIds.includes(p.funcionalidade_id) && p.status === "aprovada" && !existentes.has(p.id)).map((p) => ({ pergunta_id: p.id, tipo: "tecnica" }));
     if (!novas.length) return;
@@ -167,11 +179,40 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
               : <p className="text-xs text-slate-400 mt-1">Os dados abaixo vêm desta empresa e são enriquecidos a cada diagnóstico.</p>}
           </div>
           <div><Label>Segmento</Label>
-            <select className={inputCls} value={segId} onChange={(e) => setSegId(e.target.value)}>
+            <select className={inputCls} value={segId} onChange={(e) => { setSegId(e.target.value); setCustomIds([]); }}>
               {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>
-            {segId && (() => { const m = montarItens(segId); return <p className="text-xs text-slate-400 mt-1">{m.nIniciais} pergunta(s) inicial(is) + {m.nTecnicas} técnica(s) neste segmento.</p>; })()}
           </div>
+
+          <div>
+            <Label>O que rodar</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {[["iniciais", "Perguntas iniciais", "só as perguntas macro do segmento"], ["todas", "Todas do segmento", "iniciais + técnicas de todas as funcionalidades"], ["custom", "Customizado", "você escolhe as funcionalidades"]].map(([id, l, hint]) => (
+                <button key={id} onClick={() => setEscopo(id)} title={hint}
+                  className={`text-left rounded-xl border px-3 py-2.5 text-sm font-medium transition ${escopo === id ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-300 text-slate-500 hover:border-teal-400"}`}>
+                  {l}<span className="block text-[11px] font-normal text-slate-400 mt-0.5">{hint}</span>
+                </button>
+              ))}
+            </div>
+            {segId && escopo !== "custom" && (() => { const m = montarItens(segId, escopo, customIds); return <p className="text-xs text-slate-400 mt-1.5">{m.nIniciais} inicial(is) + {m.nTecnicas} técnica(s) = {m.itens.length} pergunta(s).</p>; })()}
+          </div>
+
+          {escopo === "custom" && (
+            <div>
+              <Label>Funcionalidades ({customIds.length})</Label>
+              <div className="rounded-xl border border-slate-200 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                {funcsDoSegmento(segId).length === 0 && <p className="text-sm text-slate-400 p-3">Nenhuma funcionalidade neste segmento.</p>}
+                {funcsDoSegmento(segId).map((f) => (
+                  <label key={f.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm">
+                    <input type="checkbox" className="accent-teal-600" checked={customIds.includes(f.id)} onChange={() => toggleCustom(f.id)} />
+                    <span className="text-slate-700">{f.nome}</span>
+                    <span className="text-xs text-slate-400 ml-auto">{areaNome(f.area_id)}</span>
+                  </label>
+                ))}
+              </div>
+              {customIds.length > 0 && (() => { const m = montarItens(segId, escopo, customIds); return <p className="text-xs text-slate-400 mt-1.5">{m.nTecnicas} pergunta(s) técnica(s) nas selecionadas.</p>; })()}
+            </div>
+          )}
           {camposOrdenados(base).length > 0 && (
             <div className="grid sm:grid-cols-2 gap-4 pt-1 border-t border-slate-100">
               {camposOrdenados(base).map((c) => (
@@ -247,7 +288,7 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   const concluiu = idx >= itens.length;
   const answered = respostasSessao.map((r) => ({ p: perguntaDe({ pergunta_id: r.pergunta_id, tipo: r.tipo }), o: opById(r.opcao_id, r.tipo), outro: r.texto_outro }));
   const novasDisponiveis = (() => {
-    const { funcIds } = montarItens(sessao.segmento_id);
+    const funcIds = sessao.func_ids || [];
     const existentes = new Set((sessao.itens || []).map((it) => it.pergunta_id));
     return base.perguntas.filter((p) => funcIds.includes(p.funcionalidade_id) && p.status === "aprovada" && !existentes.has(p.id)).length;
   })();

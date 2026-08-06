@@ -10,7 +10,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const [areaId, setAreaId] = useState(base.areas[0]?.id || "");
   const [novaArea, setNovaArea] = useState("");
   const [codigo, setCodigo] = useState("");
-  const [desc, setDesc] = useState({ objetivo: "", fluxo: "", beneficio: "", risco: "", limitacoes: "", cadastrar: "" });
+  const [comoAtende, setComoAtende] = useState("");
   const [showDetalhes, setShowDetalhes] = useState(false);
   const [perguntas, setPerguntas] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -24,8 +24,8 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
     setNome(f.nome); setCodigo(f.codigo);
     setSegmentoIds(Array.isArray(f.segmento_ids) ? f.segmento_ids : []);
     setAreaId(f.area_id);
-    setDesc({ objetivo: f.objetivo || "", fluxo: f.fluxo || "", beneficio: f.beneficio || "", risco: f.risco || "", limitacoes: f.limitacoes || "", cadastrar: f.cadastrar || "" });
-    if (f.objetivo || f.fluxo || f.beneficio || f.risco || f.limitacoes || f.cadastrar) setShowDetalhes(true);
+    setComoAtende(f.como_atende || "");
+    if (f.como_atende) setShowDetalhes(true);
     const pg = base.perguntas.filter((p) => p.funcionalidade_id === f.id).map((p) => ({
       texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar",
       opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem).map((o) => ({ texto: o.texto, veredito: o.veredito })),
@@ -38,7 +38,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
 
   const resetForm = () => {
     setNome(""); setCodigo(""); setNovaArea(""); setSegmentoIds([]); setShowDetalhes(false);
-    setDesc({ objetivo: "", fluxo: "", beneficio: "", risco: "", limitacoes: "", cadastrar: "" });
+    setComoAtende("");
     setPerguntas([]); setErro(""); clearEditing();
   };
 
@@ -47,7 +47,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
     setErro(""); setLoading(true);
     try {
       const out = await generate(nome.trim(), areaId);
-      if (out.descricao) { setDesc((d) => ({ ...d, ...out.descricao })); setShowDetalhes(true); }
+      if (out.como_atende) { setComoAtende(out.como_atende); setShowDetalhes(true); }
       const novas = (out.perguntas || []).map((p) => ({
         texto: p.pergunta || p.texto || "",
         disposicao: "usar",
@@ -92,7 +92,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
 
     if (editing) {
       const fid = editing;
-      funcionalidades = base.funcionalidades.map((f) => f.id === fid ? { ...f, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), ...desc, atualizado_em: nowISO() } : f);
+      funcionalidades = base.funcionalidades.map((f) => f.id === fid ? { ...f, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), como_atende: comoAtende, atualizado_em: nowISO() } : f);
       const antigas = base.perguntas.filter((p) => p.funcionalidade_id === fid).map((p) => p.id);
       perguntasArr = base.perguntas.filter((p) => p.funcionalidade_id !== fid);
       opcoesArr = base.opcoes.filter((o) => !antigas.includes(o.pergunta_id));
@@ -103,7 +103,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       });
     } else {
       const fid = uid();
-      funcionalidades = [...base.funcionalidades, { id: fid, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), ...desc, criado_em: nowISO(), atualizado_em: nowISO() }];
+      funcionalidades = [...base.funcionalidades, { id: fid, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), como_atende: comoAtende, criado_em: nowISO(), atualizado_em: nowISO() }];
       perguntasArr = [...base.perguntas];
       opcoesArr = [...base.opcoes];
       usaveis.forEach((p) => {
@@ -166,21 +166,9 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       </div>
 
       <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
-        <button className="flex items-center gap-2 w-full text-left" onClick={() => setShowDetalhes((v) => !v)}>
-          {showDetalhes ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-          <span className="font-mono text-xs uppercase tracking-widest text-slate-400">Detalhes da funcionalidade</span>
-          <span className="text-xs text-slate-400">— opcional; a IA preenche. Escreve o relatório, não decide o veredito.</span>
-        </button>
-        {showDetalhes && (
-          <div className="grid sm:grid-cols-2 gap-4 mt-4">
-            {[["objetivo", "Objetivo"], ["fluxo", "Fluxo (passos)"], ["beneficio", "Benefício → ganho"], ["risco", "Risco → urgência"], ["limitacoes", "Limitações → gancho de custom"], ["cadastrar", "O que cadastrar"]].map(([k, l]) => (
-              <div key={k}>
-                <Label>{l}</Label>
-                <textarea className={inputCls + " resize-y"} style={{ minHeight: 64 }} value={desc[k]} onChange={(e) => setDesc((d) => ({ ...d, [k]: e.target.value }))} />
-              </div>
-            ))}
-          </div>
-        )}
+        <Label>Como atende</Label>
+        <p className="text-xs text-slate-400 mb-2">Texto que aparece no relatório <b>apenas</b> nas respostas cujo veredito for “atende” — descreve como o sistema cobre esse processo. A IA pode preencher.</p>
+        <textarea className={inputCls + " resize-y"} style={{ minHeight: 80 }} value={comoAtende} onChange={(e) => setComoAtende(e.target.value)} placeholder="ex.: O sistema registra a produção em tempo real por ordem e operação, com baixa automática de insumos." />
       </div>
 
       <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">

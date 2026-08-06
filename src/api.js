@@ -33,11 +33,3 @@ export async function generate(tema, areaId) {
   return r.json();
 }
 
-export async function generateAssessment(segmentoId) {
-  const r = await fetch("/api/generate-assessment", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ segmentoId }) });
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({}));
-    throw new Error(e.error || `HTTP ${r.status}`);
-  }
-  return r.json();
-}

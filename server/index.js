@@ -6,7 +6,7 @@ import "dotenv/config";
 
 import { load, save, DATA_FILE } from "./db.js";
 import { seedBase } from "./seed.js";
-import { gerarComIA, gerarAssessmentComIA } from "./anthropic.js";
+import { gerarComIA } from "./anthropic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -57,10 +57,6 @@ function getData() {
       { id: "filiais", label: "Número de filiais", tipo: "numero", opcoes: [], obrigatorio: false, ordem: 1 },
       { id: "regime", label: "Regime tributário", tipo: "selecao", opcoes: ["Simples Nacional", "Lucro Presumido", "Lucro Real"], obrigatorio: false, ordem: 2 },
     ];
-    mudou = true;
-  }
-  if (typeof d.base.iaPosturaAssessment !== "string") {
-    d.base.iaPosturaAssessment = "Aja como um consultor sênior de negócios especializado em indústria. Seu objetivo é entender, de forma macro, como a empresa opera: sua dinâmica, nível de organização, processos e gargalos. Faça perguntas de alto nível que um diretor ou gerente responderia — não perguntas técnicas de sistema. Busque revelar a maturidade do negócio e onde há oportunidade de evolução.";
     mudou = true;
   }
   if (mudou) save(d);
@@ -135,32 +131,6 @@ app.post("/api/generate", async (req, res) => {
   }
 });
 
-app.post("/api/generate-assessment", async (req, res) => {
-  const { segmentoId } = req.body || {};
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY não configurada no .env do servidor." });
-
-  const d = getData();
-  const seg = (d.base.segmentos || []).find((s) => s.id === segmentoId);
-  if (!seg) return res.status(400).json({ error: "Segmento não encontrado." });
-
-  const funcs = (d.base.funcionalidades || [])
-    .filter((f) => Array.isArray(f.segmento_ids) && f.segmento_ids.includes(segmentoId))
-    .map((f) => ({ id: f.id, nome: f.nome }));
-
-  try {
-    const out = await gerarAssessmentComIA({
-      segmento: seg.nome,
-      funcs,
-      postura: d.base.iaPosturaAssessment || "",
-      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
-      apiKey,
-    });
-    res.json(out);
-  } catch (e) {
-    res.status(502).json({ error: e.message });
-  }
-});
 const dist = path.join(__dirname, "..", "dist");
 if (fs.existsSync(dist)) {
   app.use(express.static(dist));
