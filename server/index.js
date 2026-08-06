@@ -20,7 +20,13 @@ function getData() {
     save(d);
   }
   if (!d.diag) d.diag = { diagnosticos: [], respostas: [] };
-  if (migrarSegmentos(d.base)) save(d);
+  let mudou = migrarSegmentos(d.base);
+  // Assessment de segmento (estágio 1) — garante as coleções.
+  if (!Array.isArray(d.base.assessmentPerguntas)) { d.base.assessmentPerguntas = []; mudou = true; }
+  if (!Array.isArray(d.base.assessmentOpcoes)) { d.base.assessmentOpcoes = []; mudou = true; }
+  if (!Array.isArray(d.diag.assessments)) { d.diag.assessments = []; mudou = true; }
+  if (!Array.isArray(d.diag.assessmentRespostas)) { d.diag.assessmentRespostas = []; mudou = true; }
+  if (mudou) save(d);
   return d;
 }
 

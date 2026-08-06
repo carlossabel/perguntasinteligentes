@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Sparkles, ClipboardCheck, MessageSquare, FileText, Database, Loader2, AlertTriangle } from "lucide-react";
+import { Sparkles, ClipboardCheck, MessageSquare, FileText, Database, Gauge, Loader2, AlertTriangle } from "lucide-react";
 import { getBase, putBase, getDiag, putDiag } from "./api.js";
+import Assessment from "./screens/Assessment.jsx";
 import Cadastro from "./screens/Cadastro.jsx";
 import Curadoria from "./screens/Curadoria.jsx";
 import Diagnostico from "./screens/Diagnostico.jsx";
@@ -8,6 +9,7 @@ import Relatorio from "./screens/Relatorio.jsx";
 import Base from "./screens/Base.jsx";
 
 const TABS = [
+  { id: "assessment", label: "Assessment", icon: Gauge },
   { id: "cadastro", label: "Cadastro", icon: Sparkles },
   { id: "curadoria", label: "Curadoria", icon: ClipboardCheck },
   { id: "diagnostico", label: "Diagnóstico", icon: MessageSquare },
@@ -29,7 +31,7 @@ export default function App() {
       try {
         const [b, d] = await Promise.all([getBase(), getDiag()]);
         setBase(b);
-        setDiag(d || { diagnosticos: [], respostas: [] });
+        setDiag(d || { diagnosticos: [], respostas: [], assessments: [], assessmentRespostas: [] });
         setReady(true);
       } catch (e) {
         setErro(e.message + " — verifique se o servidor está rodando (npm run dev).");
@@ -82,6 +84,7 @@ export default function App() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8">
+        {tab === "assessment" && <Assessment base={base} saveBase={saveBase} diag={diag} saveDiag={saveDiag} />}
         {tab === "cadastro" && <Cadastro base={base} saveBase={saveBase} editing={editingFunc} clearEditing={() => setEditingFunc(null)} />}
         {tab === "curadoria" && <Curadoria base={base} saveBase={saveBase} diag={diag} />}
         {tab === "diagnostico" && <Diagnostico base={base} diag={diag} saveDiag={saveDiag} goToReport={goToReport} />}
