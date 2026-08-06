@@ -64,11 +64,16 @@ export async function gerarComIA({ tema, recusadas, model, apiKey }) {
 
 /* ---------- Geração de ASSESSMENT (perguntas macro de maturidade) ---------- */
 const POSTURA_PADRAO_ASSESSMENT =
-  "Aja como um consultor sênior de negócios. Seu objetivo é entender, de forma macro, como a empresa opera: sua dinâmica, nível de organização, processos e gargalos. Faça perguntas de alto nível que um executivo ou dono responderia — não perguntas técnicas de sistema. Busque revelar a maturidade do negócio e onde há oportunidade de evolução.";
+  "Aja como um consultor sênior de negócios especializado em indústria. Seu objetivo é entender, de forma macro, como a empresa opera: sua dinâmica, nível de organização, processos e gargalos. Faça perguntas de alto nível que um diretor ou gerente responderia — não perguntas técnicas de sistema. Busque revelar a maturidade do negócio e onde há oportunidade de evolução.";
+
+const BASELINE_ASSESSMENT =
+  "CONTEXTO FIXO (sempre vale, não pode ser ignorado): o cliente é uma INDÚSTRIA de médio porte, com operação já estabelecida e algum nível de sistema e processo. NUNCA faça perguntas básicas, óbvias ou de empresa amadora — assuma um interlocutor experiente (diretor/gerente de operações). As perguntas devem DISTINGUIR níveis de maturidade (evite sim/não triviais), tocar em nuances reais do dia a dia industrial e ser específicas do segmento. Não invente dados do cliente; pergunte para descobrir.";
 
 function montarPromptAssessment({ segmento, funcs, postura }) {
   const catalogo = funcs.length ? funcs.map((f) => `${f.id} — ${f.nome}`).join("\n") : "(nenhuma funcionalidade cadastrada neste segmento)";
   return `${postura || POSTURA_PADRAO_ASSESSMENT}
+
+${BASELINE_ASSESSMENT}
 
 TAREFA: monte um ASSESSMENT de maturidade do segmento "${segmento}", para ser aplicado por um profissional COMERCIAL. As perguntas devem entender COMO a empresa opera (visão macro de negócio), não aspectos técnicos de software.
 
