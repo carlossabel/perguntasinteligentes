@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Gauge, Plus, Trash2, Check, X, ChevronRight, ListChecks, PencilLine, Play, Building2, Layers } from "lucide-react";
+import { Gauge, Plus, Trash2, Check, X, ChevronRight, ChevronUp, ChevronDown, ListChecks, PencilLine, Play, Building2, Layers } from "lucide-react";
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
 
 const NIVEIS = [
@@ -111,6 +111,10 @@ function CamposEmpresa({ base, saveBase }) {
   const [opcoesTxt, setOpcoesTxt] = useState("");
   const [obrigatorio, setObrigatorio] = useState(false);
   const [erro, setErro] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [ed, setEd] = useState({ label: "", tipo: "texto", opcoesTxt: "", obrigatorio: false });
+
+  const tipoLabel = (t) => TIPOS.find((x) => x[0] === t)?.[1] || t;
 
   const salvar = () => {
     setErro("");
@@ -124,47 +128,86 @@ function CamposEmpresa({ base, saveBase }) {
   const remover = (id) => {
     if (!confirm("Remover este campo? Os assessments já rodados mantêm o valor guardado.")) return;
     saveBase({ ...base, camposEmpresa: base.camposEmpresa.filter((c) => c.id !== id) });
+    if (editId === id) setEditId(null);
+  };
+  const mover = (id, dir) => {
+    const arr = camposOrdenados(base);
+    const i = arr.findIndex((c) => c.id === id);
+    const j = i + dir;
+    if (j < 0 || j >= arr.length) return;
+    const sw = [...arr];
+    [sw[i], sw[j]] = [sw[j], sw[i]];
+    saveBase({ ...base, camposEmpresa: sw.map((c, k) => ({ ...c, ordem: k })) });
+  };
+  const abrirEdicao = (c) => { setErro(""); setEditId(c.id); setEd({ label: c.label, tipo: c.tipo, opcoesTxt: (c.opcoes || []).join(", "), obrigatorio: !!c.obrigatorio }); };
+  const salvarEdicao = () => {
+    setErro("");
+    if (!ed.label.trim()) { setErro("Dê um nome ao campo."); return; }
+    const opcoes = ed.tipo === "selecao" ? ed.opcoesTxt.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    if (ed.tipo === "selecao" && opcoes.length < 2) { setErro("Seleção precisa de ao menos 2 opções."); return; }
+    saveBase({ ...base, camposEmpresa: base.camposEmpresa.map((c) => c.id === editId ? { ...c, label: ed.label.trim(), tipo: ed.tipo, opcoes, obrigatorio: ed.obrigatorio } : c) });
+    setEditId(null);
   };
 
+  const iconBtn = "p-1 rounded text-slate-400 hover:text-teal-700 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent";
+
   return (
-    <div className="space-y-5">
-      <p className="text-sm text-slate-500">Defina os campos que você preenche sobre a empresa a cada assessment. Valem para todos os segmentos.</p>
+    <div className="space-y-4">
+      <p className="text-sm text-slate-500">Campos que você preenche sobre a empresa ao rodar. Valem para todos os segmentos.</p>
+
+      {erro && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{erro}</div>}
 
       {campos.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400">Campos ({campos.length})</h3>
-          {campos.map((c) => (
-            <div key={c.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <span className="text-sm font-medium text-slate-800">{c.label}</span>
-              <span className="font-mono text-xs bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">{TIPOS.find((t) => t[0] === c.tipo)?.[1]}</span>
-              {c.obrigatorio && <span className="text-xs text-red-600">obrigatório</span>}
-              {c.tipo === "selecao" && <span className="text-xs text-slate-400">{c.opcoes.join(" · ")}</span>}
-              <button className="ml-auto p-1 text-slate-400 hover:text-red-600" onClick={() => remover(c.id)}><Trash2 className="w-4 h-4" /></button>
+        <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+          {campos.map((c, i) => editId === c.id ? (
+            <div key={c.id} className="p-3 bg-teal-50/40 space-y-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input className={inputCls} value={ed.label} onChange={(e) => setEd((s) => ({ ...s, label: e.target.value }))} placeholder="Nome do campo" />
+                <select className={inputCls + " sm:w-40"} value={ed.tipo} onChange={(e) => setEd((s) => ({ ...s, tipo: e.target.value }))}>
+                  {TIPOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+              {ed.tipo === "selecao" && <input className={inputCls} value={ed.opcoesTxt} onChange={(e) => setEd((s) => ({ ...s, opcoesTxt: e.target.value }))} placeholder="Opções separadas por vírgula" />}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" className="accent-teal-600" checked={ed.obrigatorio} onChange={(e) => setEd((s) => ({ ...s, obrigatorio: e.target.checked }))} /> Obrigatório</label>
+                <div className="flex gap-2">
+                  <button className={btnGhost + " !py-1.5"} onClick={() => setEditId(null)}>Cancelar</button>
+                  <button className={btnTeal + " !py-1.5"} onClick={salvarEdicao}><Check className="w-4 h-4" /> Salvar</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div key={c.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+              <span className="font-medium text-slate-800">{c.label}</span>
+              <span className="font-mono text-[11px] bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">{tipoLabel(c.tipo)}</span>
+              {c.obrigatorio && <span className="text-[11px] text-red-500">obrigatório</span>}
+              {c.tipo === "selecao" && <span className="text-xs text-slate-400 truncate">{c.opcoes.join(" · ")}</span>}
+              <div className="ml-auto flex items-center gap-0.5">
+                <button className={iconBtn} onClick={() => mover(c.id, -1)} disabled={i === 0} title="Subir"><ChevronUp className="w-4 h-4" /></button>
+                <button className={iconBtn} onClick={() => mover(c.id, 1)} disabled={i === campos.length - 1} title="Descer"><ChevronDown className="w-4 h-4" /></button>
+                <button className={iconBtn} onClick={() => abrirEdicao(c)} title="Editar"><PencilLine className="w-4 h-4" /></button>
+                <button className={iconBtn + " hover:!text-red-600"} onClick={() => remover(c.id)} title="Remover"><Trash2 className="w-4 h-4" /></button>
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-        <h3 className="font-mono text-xs uppercase tracking-widest text-teal-700">Novo campo</h3>
-        {erro && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{erro}</div>}
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div><Label>Nome do campo</Label><input className={inputCls} placeholder="ex.: CNPJ, faturamento anual…" value={label} onChange={(e) => setLabel(e.target.value)} /></div>
-          <div><Label>Tipo</Label>
-            <select className={inputCls} value={tipo} onChange={(e) => setTipo(e.target.value)}>
-              {TIPOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </div>
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+        <span className="font-mono text-xs uppercase tracking-widest text-teal-700">Novo campo</span>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input className={inputCls} placeholder="Nome do campo (ex.: faturamento anual)" value={label} onChange={(e) => setLabel(e.target.value)} />
+          <select className={inputCls + " sm:w-40"} value={tipo} onChange={(e) => setTipo(e.target.value)}>
+            {TIPOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
         </div>
         {tipo === "selecao" && (
-          <div><Label>Opções (separadas por vírgula)</Label>
-            <input className={inputCls} placeholder="Simples Nacional, Lucro Presumido, Lucro Real" value={opcoesTxt} onChange={(e) => setOpcoesTxt(e.target.value)} />
-          </div>
+          <input className={inputCls} placeholder="Opções separadas por vírgula: Simples Nacional, Lucro Presumido, Lucro Real" value={opcoesTxt} onChange={(e) => setOpcoesTxt(e.target.value)} />
         )}
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <input type="checkbox" className="accent-teal-600" checked={obrigatorio} onChange={(e) => setObrigatorio(e.target.checked)} /> Obrigatório ao rodar
-        </label>
-        <div className="flex justify-end"><button className={btnTeal} onClick={salvar}><Check className="w-4 h-4" /> Adicionar campo</button></div>
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" className="accent-teal-600" checked={obrigatorio} onChange={(e) => setObrigatorio(e.target.checked)} /> Obrigatório ao rodar</label>
+          <button className={btnTeal} onClick={salvar}><Plus className="w-4 h-4" /> Adicionar</button>
+        </div>
       </div>
     </div>
   );
