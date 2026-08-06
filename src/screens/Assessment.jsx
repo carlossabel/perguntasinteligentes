@@ -218,6 +218,8 @@ function CadastroPerguntas({ base, saveBase, segId }) {
   const [texto, setTexto] = useState("");
   const [opcoes, setOpcoes] = useState([{ texto: "", nivel: 4, oportunidades: [] }, { texto: "", nivel: 0, oportunidades: [] }]);
   const [erro, setErro] = useState("");
+  const [editId, setEditId] = useState(null);
+  const formRef = useRef(null);
 
   const perguntas = (base.assessmentPerguntas || []).filter((p) => p.segmento_id === segId).sort((a, b) => a.ordem - b.ordem);
   const opcoesDe = (pid) => (base.assessmentOpcoes || []).filter((o) => o.pergunta_id === pid).sort((a, b) => a.ordem - b.ordem);
@@ -238,16 +240,30 @@ function CadastroPerguntas({ base, saveBase, segId }) {
     if (!texto.trim()) { setErro("Escreva o texto da pergunta."); return; }
     const ops = opcoes.filter((o) => o.texto.trim());
     if (ops.length < 2) { setErro("A pergunta precisa de ao menos 2 opções com texto."); return; }
-    const pid = uid();
-    const novaP = { id: pid, segmento_id: segId, texto: texto.trim(), ordem: perguntas.length };
-    const novasO = ops.map((o, idx) => ({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), nivel: Number(o.nivel), oportunidades: o.oportunidades, ordem: idx }));
-    saveBase({ ...base, assessmentPerguntas: [...(base.assessmentPerguntas || []), novaP], assessmentOpcoes: [...(base.assessmentOpcoes || []), ...novasO] });
-    setTexto(""); setOpcoes([{ texto: "", nivel: 4, oportunidades: [] }, { texto: "", nivel: 0, oportunidades: [] }]);
+    if (editId) {
+      const perguntasArr = base.assessmentPerguntas.map((p) => p.id === editId ? { ...p, texto: texto.trim() } : p);
+      const semAntigas = base.assessmentOpcoes.filter((o) => o.pergunta_id !== editId);
+      const novasO = ops.map((o, idx) => ({ id: uid(), pergunta_id: editId, texto: o.texto.trim(), nivel: Number(o.nivel), oportunidades: o.oportunidades, ordem: idx }));
+      saveBase({ ...base, assessmentPerguntas: perguntasArr, assessmentOpcoes: [...semAntigas, ...novasO] });
+    } else {
+      const pid = uid();
+      const novaP = { id: pid, segmento_id: segId, texto: texto.trim(), ordem: perguntas.length };
+      const novasO = ops.map((o, idx) => ({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), nivel: Number(o.nivel), oportunidades: o.oportunidades, ordem: idx }));
+      saveBase({ ...base, assessmentPerguntas: [...(base.assessmentPerguntas || []), novaP], assessmentOpcoes: [...(base.assessmentOpcoes || []), ...novasO] });
+    }
+    limparForm();
+  };
+  const limparForm = () => { setTexto(""); setOpcoes([{ texto: "", nivel: 4, oportunidades: [] }, { texto: "", nivel: 0, oportunidades: [] }]); setEditId(null); };
+  const editar = (p) => {
+    setErro(""); setEditId(p.id); setTexto(p.texto);
+    setOpcoes(opcoesDe(p.id).map((o) => ({ texto: o.texto, nivel: o.nivel, oportunidades: [...(o.oportunidades || [])] })));
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
   };
 
   const removerPergunta = (pid) => {
     if (!confirm("Remover esta pergunta e suas opções?")) return;
     saveBase({ ...base, assessmentPerguntas: base.assessmentPerguntas.filter((p) => p.id !== pid), assessmentOpcoes: base.assessmentOpcoes.filter((o) => o.pergunta_id !== pid) });
+    if (editId === pid) limparForm();
   };
 
   return (
@@ -256,10 +272,13 @@ function CadastroPerguntas({ base, saveBase, segId }) {
         <div className="space-y-2">
           <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400">Perguntas do segmento ({perguntas.length})</h3>
           {perguntas.map((p) => (
-            <div key={p.id} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div key={p.id} className={`rounded-xl border p-4 ${editId === p.id ? "border-teal-400 ring-1 ring-teal-200" : "border-slate-200"} bg-white`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="text-sm font-medium text-slate-800">{p.texto}</div>
-                <button className="p-1 text-slate-400 hover:text-red-600" onClick={() => removerPergunta(p.id)}><Trash2 className="w-4 h-4" /></button>
+                <div className="flex gap-1 shrink-0">
+                  <button className="p-1 text-slate-400 hover:text-teal-700" onClick={() => editar(p)} title="Editar"><PencilLine className="w-4 h-4" /></button>
+                  <button className="p-1 text-slate-400 hover:text-red-600" onClick={() => removerPergunta(p.id)} title="Remover"><Trash2 className="w-4 h-4" /></button>
+                </div>
               </div>
               <div className="mt-2 space-y-1">
                 {opcoesDe(p.id).map((o) => (
@@ -275,8 +294,8 @@ function CadastroPerguntas({ base, saveBase, segId }) {
         </div>
       )}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-        <h3 className="font-mono text-xs uppercase tracking-widest text-teal-700">Nova pergunta macro</h3>
+      <div ref={formRef} className={`rounded-2xl border bg-white p-5 space-y-4 ${editId ? "border-teal-400" : "border-slate-200"}`}>
+        <h3 className="font-mono text-xs uppercase tracking-widest text-teal-700">{editId ? "Editar pergunta" : "Nova pergunta macro"}</h3>
         {erro && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{erro}</div>}
         <div><Label>Pergunta</Label><input className={inputCls} placeholder="ex.: Como a empresa acompanha a produção hoje?" value={texto} onChange={(e) => setTexto(e.target.value)} /></div>
 
@@ -310,7 +329,10 @@ function CadastroPerguntas({ base, saveBase, segId }) {
           <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={addOp}><Plus className="w-3 h-3" /> opção</button>
         </div>
 
-        <div className="flex justify-end"><button className={btnTeal} onClick={salvar}><Check className="w-4 h-4" /> Salvar pergunta</button></div>
+        <div className="flex justify-end gap-2">
+          {editId && <button className={btnGhost} onClick={limparForm}>Cancelar</button>}
+          <button className={btnTeal} onClick={salvar}><Check className="w-4 h-4" /> {editId ? "Salvar alterações" : "Salvar pergunta"}</button>
+        </div>
       </div>
     </div>
   );
@@ -428,6 +450,24 @@ function RodarAssessment({ base, diag, saveDiag }) {
               ))}
             </div>}
           {resultado.oportunidades.length > 0 && <p className="text-xs text-slate-400 mt-2">Na próxima fatia, estas viram a seleção do diagnóstico técnico (estágio 2).</p>}
+        </div>
+        <div>
+          <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Respostas do assessment</h3>
+          <div className="space-y-2">
+            {(diag.assessmentRespostas || []).filter((r) => r.assessment_id === resultado.id).map((r) => {
+              const op = opById(r.opcao_id);
+              return (
+                <div key={r.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <div className="text-sm text-slate-500">{perguntaById(r.pergunta_id)?.texto || "(pergunta removida)"}</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-sm text-slate-800 font-medium">{op?.texto || "(opção removida)"}</span>
+                    {op && <span className="font-mono text-[11px] bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">{nivelLabel(op.nivel)}</span>}
+                    {op && op.oportunidades?.length > 0 && <span className="text-xs text-teal-700">→ {op.oportunidades.map(funcNome).join(", ")}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
         <button className={btnGhost} onClick={() => { setResultado(null); }}>Novo assessment</button>
       </div>
