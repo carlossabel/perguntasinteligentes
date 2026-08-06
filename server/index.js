@@ -21,6 +21,14 @@ function getData() {
   }
   if (!d.diag) d.diag = { diagnosticos: [], respostas: [] };
   let mudou = migrarSegmentos(d.base);
+  // Modelo novo: funcionalidade transversal (segmento_ids) e área global.
+  (d.base.funcionalidades || []).forEach((f) => {
+    if (!Array.isArray(f.segmento_ids)) {
+      const area = (d.base.areas || []).find((a) => a.id === f.area_id);
+      f.segmento_ids = area && area.segmento_id ? [area.segmento_id] : [];
+      mudou = true;
+    }
+  });
   // Assessment de segmento (estágio 1) — garante as coleções.
   if (!Array.isArray(d.base.assessmentPerguntas)) { d.base.assessmentPerguntas = []; mudou = true; }
   if (!Array.isArray(d.base.assessmentOpcoes)) { d.base.assessmentOpcoes = []; mudou = true; }
@@ -120,9 +128,8 @@ app.post("/api/generate-assessment", async (req, res) => {
   const seg = (d.base.segmentos || []).find((s) => s.id === segmentoId);
   if (!seg) return res.status(400).json({ error: "Segmento não encontrado." });
 
-  const areaIds = (d.base.areas || []).filter((a) => a.segmento_id === segmentoId).map((a) => a.id);
   const funcs = (d.base.funcionalidades || [])
-    .filter((f) => areaIds.includes(f.area_id))
+    .filter((f) => Array.isArray(f.segmento_ids) && f.segmento_ids.includes(segmentoId))
     .map((f) => ({ id: f.id, nome: f.nome }));
 
   try {

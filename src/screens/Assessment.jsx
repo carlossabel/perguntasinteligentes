@@ -267,10 +267,7 @@ function CadastroPerguntas({ base, saveBase, segId }) {
 
   const perguntas = (base.assessmentPerguntas || []).filter((p) => p.segmento_id === segId).sort((a, b) => a.ordem - b.ordem);
   const opcoesDe = (pid) => (base.assessmentOpcoes || []).filter((o) => o.pergunta_id === pid).sort((a, b) => a.ordem - b.ordem);
-  const funcsDoSegmento = base.funcionalidades.filter((f) => {
-    const area = base.areas.find((a) => a.id === f.area_id);
-    return area && area.segmento_id === segId;
-  });
+  const funcsDoSegmento = base.funcionalidades.filter((f) => (f.segmento_ids || []).includes(segId));
   const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
 
   const updOp = (i, patch) => setOpcoes((o) => o.map((x, k) => (k === i ? { ...x, ...patch } : x)));

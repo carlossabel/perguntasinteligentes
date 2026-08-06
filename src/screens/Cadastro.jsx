@@ -5,10 +5,10 @@ import { generate } from "../api.js";
 
 export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const segmentos = base.segmentos || [];
-  const [segmentoId, setSegmentoId] = useState(segmentos[0]?.id || "");
-  const [areaId, setAreaId] = useState("");
-  const [novaArea, setNovaArea] = useState("");
   const [nome, setNome] = useState("");
+  const [segmentoIds, setSegmentoIds] = useState([]);
+  const [areaId, setAreaId] = useState(base.areas[0]?.id || "");
+  const [novaArea, setNovaArea] = useState("");
   const [codigo, setCodigo] = useState("");
   const [desc, setDesc] = useState({ objetivo: "", fluxo: "", beneficio: "", risco: "", limitacoes: "", cadastrar: "" });
   const [showDetalhes, setShowDetalhes] = useState(false);
@@ -17,22 +17,13 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const [erro, setErro] = useState("");
   const [ok, setOk] = useState(false);
 
-  const areasDoSegmento = base.areas.filter((a) => a.segmento_id === segmentoId);
-
-  // Mantém a área coerente com o segmento selecionado.
-  useEffect(() => {
-    if (novaArea.trim()) return;
-    if (!areasDoSegmento.find((a) => a.id === areaId)) setAreaId(areasDoSegmento[0]?.id || "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [segmentoId]);
-
   useEffect(() => {
     if (!editing) return;
     const f = base.funcionalidades.find((x) => x.id === editing);
     if (!f) return;
-    const area = base.areas.find((a) => a.id === f.area_id);
-    if (area?.segmento_id) setSegmentoId(area.segmento_id);
-    setAreaId(f.area_id); setNome(f.nome); setCodigo(f.codigo);
+    setNome(f.nome); setCodigo(f.codigo);
+    setSegmentoIds(Array.isArray(f.segmento_ids) ? f.segmento_ids : []);
+    setAreaId(f.area_id);
     setDesc({ objetivo: f.objetivo || "", fluxo: f.fluxo || "", beneficio: f.beneficio || "", risco: f.risco || "", limitacoes: f.limitacoes || "", cadastrar: f.cadastrar || "" });
     if (f.objetivo || f.fluxo || f.beneficio || f.risco || f.limitacoes || f.cadastrar) setShowDetalhes(true);
     const pg = base.perguntas.filter((p) => p.funcionalidade_id === f.id).map((p) => ({
@@ -43,8 +34,10 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
 
+  const toggleSegmento = (id) => setSegmentoIds((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
+
   const resetForm = () => {
-    setNome(""); setCodigo(""); setNovaArea(""); setShowDetalhes(false);
+    setNome(""); setCodigo(""); setNovaArea(""); setSegmentoIds([]); setShowDetalhes(false);
     setDesc({ objetivo: "", fluxo: "", beneficio: "", risco: "", limitacoes: "", cadastrar: "" });
     setPerguntas([]); setErro(""); clearEditing();
   };
@@ -86,29 +79,20 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const salvar = () => {
     setErro("");
     if (!nome.trim()) { setErro("A funcionalidade precisa de um nome."); return; }
+    if (segmentoIds.length === 0) { setErro("Vincule a pelo menos um segmento."); return; }
 
-    // 1) Segmento (escolhido; a criação de segmento fica no Assessment)
-    const segId = segmentoId, segmentosArr = segmentos;
-    if (!segId) { setErro("Escolha um segmento."); return; }
-
-    // 2) Resolve área dentro do segmento
+    // Área (global): escolhida ou nova
     let aId = areaId, areas = base.areas;
-    if (novaArea.trim()) { aId = uid(); areas = [...areas, { id: aId, nome: novaArea.trim(), segmento_id: segId }]; }
-    if (!aId) { setErro("Escolha ou crie uma área no segmento."); return; }
-    if (!novaArea.trim()) {
-      const areaSel = areas.find((a) => a.id === aId);
-      if (areaSel && areaSel.segmento_id !== segId) { setErro("A área escolhida não pertence a esse segmento."); return; }
-    }
+    if (novaArea.trim()) { aId = uid(); areas = [...areas, { id: aId, nome: novaArea.trim() }]; }
+    if (!aId) { setErro("Escolha ou crie uma área."); return; }
 
-    // 3) Código interno: mantém o existente ao editar; senão gera único a partir do nome
     const cod = (editing && codigo.trim()) ? codigo.trim() : gerarCodigoUnico(slug(nome));
-
     const usaveis = perguntas.filter((p) => p.disposicao !== "descartar" && p.texto.trim());
     let funcionalidades, perguntasArr, opcoesArr;
 
     if (editing) {
       const fid = editing;
-      funcionalidades = base.funcionalidades.map((f) => f.id === fid ? { ...f, area_id: aId, codigo: cod, nome: nome.trim(), ...desc, atualizado_em: nowISO() } : f);
+      funcionalidades = base.funcionalidades.map((f) => f.id === fid ? { ...f, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), ...desc, atualizado_em: nowISO() } : f);
       const antigas = base.perguntas.filter((p) => p.funcionalidade_id === fid).map((p) => p.id);
       perguntasArr = base.perguntas.filter((p) => p.funcionalidade_id !== fid);
       opcoesArr = base.opcoes.filter((o) => !antigas.includes(o.pergunta_id));
@@ -119,7 +103,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       });
     } else {
       const fid = uid();
-      funcionalidades = [...base.funcionalidades, { id: fid, area_id: aId, codigo: cod, nome: nome.trim(), ...desc, criado_em: nowISO(), atualizado_em: nowISO() }];
+      funcionalidades = [...base.funcionalidades, { id: fid, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), ...desc, criado_em: nowISO(), atualizado_em: nowISO() }];
       perguntasArr = [...base.perguntas];
       opcoesArr = [...base.opcoes];
       usaveis.forEach((p) => {
@@ -128,38 +112,21 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
         p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, ordem: idx }));
       });
     }
-    saveBase({ ...base, segmentos: segmentosArr, areas, funcionalidades, perguntas: perguntasArr, opcoes: opcoesArr });
+    saveBase({ ...base, areas, funcionalidades, perguntas: perguntasArr, opcoes: opcoesArr });
     setOk(true); setTimeout(() => setOk(false), 2500);
     resetForm();
   };
 
   return (
     <div className="max-w-3xl mx-auto">
-      <SectionTitle sub="Escolha o segmento e a área, dê um nome à funcionalidade, deixe a IA sugerir e cure antes de salvar.">
-        {editing ? "Editar funcionalidade" : "Cadastro de funcionalidade"}
+      <SectionTitle sub="Dê um nome à funcionalidade, vincule a um ou mais segmentos e a uma área, deixe a IA sugerir e cure antes de salvar.">
+        {editing ? "Editar perguntas da funcionalidade" : "Cadastro de perguntas da funcionalidade"}
       </SectionTitle>
 
       {ok && <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800 flex items-center gap-2"><Check className="w-4 h-4" /> Salvo na base.</div>}
       {erro && <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> {erro}</div>}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <Label>Segmento</Label>
-            <select className={inputCls} value={segmentoId} onChange={(e) => { setSegmentoId(e.target.value); setNovaArea(""); }}>
-              {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-            </select>
-            <p className="text-xs text-slate-400 mt-1">Crie novos segmentos na aba Assessment.</p>
-          </div>
-          <div>
-            <Label>Área</Label>
-            <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-              {areasDoSegmento.length === 0 && <option value="">— sem áreas nesse segmento —</option>}
-              {areasDoSegmento.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-            </select>
-            <input className={inputCls + " mt-2"} placeholder="…ou crie uma nova área" value={novaArea} onChange={(e) => setNovaArea(e.target.value)} />
-          </div>
-        </div>
         <div>
           <Label>Nome da funcionalidade</Label>
           <div className="flex gap-2">
@@ -169,6 +136,32 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
               {loading ? "Gerando…" : "Sugerir com IA"}
             </button>
           </div>
+        </div>
+
+        <div>
+          <Label>Segmentos ({segmentoIds.length}) — um ou mais</Label>
+          {segmentos.length === 0 ? <p className="text-sm text-slate-400">Nenhum segmento ainda. Crie na aba Assessment.</p>
+            : <div className="flex flex-wrap gap-1.5">
+              {segmentos.map((s) => {
+                const on = segmentoIds.includes(s.id);
+                return (
+                  <button key={s.id} onClick={() => toggleSegmento(s.id)}
+                    className={`text-sm rounded-full px-3 py-1.5 border transition ${on ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-500 border-slate-300 hover:border-teal-400"}`}>
+                    {on && <Check className="w-3 h-3 inline mr-1" />}{s.nome}
+                  </button>
+                );
+              })}
+            </div>}
+          <p className="text-xs text-slate-400 mt-1">Crie novos segmentos na aba Assessment.</p>
+        </div>
+
+        <div>
+          <Label>Área</Label>
+          <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+            {base.areas.length === 0 && <option value="">— nenhuma área ainda —</option>}
+            {base.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+          </select>
+          <input className={inputCls + " mt-2"} placeholder="…ou crie uma nova área" value={novaArea} onChange={(e) => setNovaArea(e.target.value)} />
         </div>
       </div>
 

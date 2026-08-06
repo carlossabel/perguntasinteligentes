@@ -1,8 +1,11 @@
-import { Edit3, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Edit3, Trash2, Filter, X } from "lucide-react";
 import { VEREDITOS, SectionTitle } from "../ui.jsx";
 
 export default function Base({ base, saveBase, onEdit }) {
   const segmentos = base.segmentos || [];
+  const areaNome = (id) => base.areas.find((a) => a.id === id)?.nome || "—";
+  const segNome = (id) => segmentos.find((s) => s.id === id)?.nome || "—";
 
   const del = (fid) => {
     if (!confirm("Remover esta funcionalidade e suas perguntas?")) return;
@@ -15,6 +18,8 @@ export default function Base({ base, saveBase, onEdit }) {
     });
   };
 
+  const segsDaFunc = (f) => (f.segmento_ids || []).map(segNome).join(" · ");
+
   const cardFunc = (f) => {
     const pgs = base.perguntas.filter((p) => p.funcionalidade_id === f.id);
     return (
@@ -22,7 +27,7 @@ export default function Base({ base, saveBase, onEdit }) {
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
             <div className="font-medium text-slate-900">{f.nome}</div>
-            <div className="font-mono text-xs text-slate-400">{f.codigo}</div>
+            <div className="font-mono text-xs text-slate-400">{areaNome(f.area_id)} · {segsDaFunc(f)}</div>
           </div>
           <div className="flex gap-1">
             <button className="p-1.5 text-slate-400 hover:text-teal-700" onClick={() => onEdit(f.id)}><Edit3 className="w-4 h-4" /></button>
@@ -51,32 +56,81 @@ export default function Base({ base, saveBase, onEdit }) {
     );
   };
 
+  const [fSeg, setFSeg] = useState("");
+  const [fArea, setFArea] = useState("");
+
+  const passaArea = (f) => fArea === "" || f.area_id === fArea;
+  const passaSeg = (f) => fSeg === "" || (f.segmento_ids || []).includes(fSeg);
+
+  // Áreas relevantes para o dropdown (que têm funcionalidade no segmento filtrado)
+  const areasRelevantes = base.areas.filter((a) =>
+    base.funcionalidades.some((f) => f.area_id === a.id && passaSeg(f))
+  );
+
+  const totalFuncs = base.funcionalidades.length;
+  const mostradas = base.funcionalidades.filter((f) => passaSeg(f) && passaArea(f)).length;
+  const filtroAtivo = fSeg !== "" || fArea !== "";
+  const limpar = () => { setFSeg(""); setFArea(""); };
+
+  const semSegmento = base.funcionalidades.filter((f) => !(f.segmento_ids || []).length && passaArea(f));
+
   return (
     <div className="max-w-3xl mx-auto">
-      <SectionTitle sub="O ativo que aprende. Segmento → área → funcionalidade, com perguntas e vereditos curados.">Base de conhecimento</SectionTitle>
-      {segmentos.map((s) => {
-        const areasSeg = base.areas.filter((a) => a.segmento_id === s.id);
-        const totalFuncs = base.funcionalidades.filter((f) => areasSeg.find((a) => a.id === f.area_id)).length;
-        if (!totalFuncs) return null;
+      <SectionTitle sub="O ativo que aprende. Funcionalidades transversais, vinculadas a um ou mais segmentos. Área é global.">Base de conhecimento</SectionTitle>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 mb-6 flex flex-wrap items-end gap-3">
+        <div className="flex items-center gap-1.5 text-slate-400 mb-2"><Filter className="w-4 h-4" /><span className="font-mono text-xs uppercase tracking-widest">Filtrar</span></div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Segmento</label>
+          <select className="rounded-lg border border-slate-300 px-2 py-2 text-sm" value={fSeg} onChange={(e) => { setFSeg(e.target.value); setFArea(""); }}>
+            <option value="">Todos</option>
+            {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Área</label>
+          <select className="rounded-lg border border-slate-300 px-2 py-2 text-sm" value={fArea} onChange={(e) => setFArea(e.target.value)}>
+            <option value="">Todas</option>
+            {areasRelevantes.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+          </select>
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-xs text-slate-400 font-mono">{mostradas} de {totalFuncs}</span>
+          {filtroAtivo && <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={limpar}><X className="w-3 h-3" /> limpar</button>}
+        </div>
+      </div>
+
+      {mostradas === 0 && <p className="text-sm text-slate-400 text-center py-8">Nenhuma funcionalidade para esse filtro.</p>}
+
+      {segmentos.filter((s) => fSeg === "" || s.id === fSeg).map((s) => {
+        const funcs = base.funcionalidades.filter((f) => (f.segmento_ids || []).includes(s.id) && passaArea(f));
+        if (!funcs.length) return null;
+        const porArea = {};
+        funcs.forEach((f) => { (porArea[f.area_id] = porArea[f.area_id] || []).push(f); });
         return (
           <div key={s.id} className="mb-8">
             <div className="flex items-center gap-2 mb-3">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-teal-900">{s.nome}</h2>
-              <span className="font-mono text-xs text-slate-400">{totalFuncs} func.</span>
+              <span className="font-mono text-xs text-slate-400">{funcs.length} func.</span>
             </div>
-            {areasSeg.map((a) => {
-              const fs = base.funcionalidades.filter((f) => f.area_id === a.id);
-              if (!fs.length) return null;
-              return (
-                <div key={a.id} className="mb-5 pl-3 border-l-2 border-slate-200">
-                  <h3 className="font-mono text-xs uppercase tracking-widest text-slate-500 mb-2">{a.nome} · {fs.length}</h3>
-                  <div className="space-y-2">{fs.map(cardFunc)}</div>
-                </div>
-              );
-            })}
+            {Object.entries(porArea).map(([aid, fs]) => (
+              <div key={aid} className="mb-5 pl-3 border-l-2 border-slate-200">
+                <h3 className="font-mono text-xs uppercase tracking-widest text-slate-500 mb-2">{areaNome(aid)} · {fs.length}</h3>
+                <div className="space-y-2">{fs.map(cardFunc)}</div>
+              </div>
+            ))}
           </div>
         );
       })}
+      {fSeg === "" && semSegmento.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-700">Sem segmento</h2>
+            <span className="font-mono text-xs text-slate-400">{semSegmento.length} func.</span>
+          </div>
+          <div className="space-y-2">{semSegmento.map(cardFunc)}</div>
+        </div>
+      )}
     </div>
   );
 }

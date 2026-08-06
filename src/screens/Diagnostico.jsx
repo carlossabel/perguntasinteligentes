@@ -48,8 +48,7 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
 
   const resolverFuncIds = () => {
     if (escopo === "segmento") {
-      const areaIds = base.areas.filter((a) => a.segmento_id === segId).map((a) => a.id);
-      return base.funcionalidades.filter((f) => areaIds.includes(f.area_id)).map((f) => f.id);
+      return base.funcionalidades.filter((f) => (f.segmento_ids || []).includes(segId)).map((f) => f.id);
     }
     if (escopo === "area") return base.funcionalidades.filter((f) => f.area_id === areaSelId).map((f) => f.id);
     if (escopo === "funcionalidade") return funcId ? [funcId] : [];
@@ -157,7 +156,7 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
           {escopo === "area" && (
             <div><Label>Área</Label>
               <select className={inputCls} value={areaSelId} onChange={(e) => setAreaSelId(e.target.value)}>
-                {base.areas.map((a) => <option key={a.id} value={a.id}>{a.nome} · {segNome(a.segmento_id)}</option>)}
+                {base.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
               </select>
             </div>
           )}
@@ -173,8 +172,7 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
               <Label>Selecione as funcionalidades ({customIds.length})</Label>
               <div className="rounded-xl border border-slate-200 max-h-64 overflow-y-auto divide-y divide-slate-100">
                 {segmentos.map((s) => {
-                  const areasSeg = base.areas.filter((a) => a.segmento_id === s.id);
-                  const funcsSeg = base.funcionalidades.filter((f) => areasSeg.find((a) => a.id === f.area_id));
+                  const funcsSeg = base.funcionalidades.filter((f) => (f.segmento_ids || []).includes(s.id));
                   if (!funcsSeg.length) return null;
                   return (
                     <div key={s.id} className="p-2">
