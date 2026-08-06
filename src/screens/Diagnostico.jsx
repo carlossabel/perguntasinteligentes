@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { MessageSquare, ChevronRight, Send, ArrowLeft, X, FileText, Layers, Grid3x3, Box, ListChecks, Play, Plus, Pause } from "lucide-react";
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
+import { RodarAssessment } from "./Assessment.jsx";
 
 const ESCOPOS = [
   { id: "segmento", label: "Segmento", icon: Layers, hint: "todas as perguntas do segmento" },
@@ -12,6 +13,7 @@ const ESCOPOS = [
 export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   const segmentos = base.segmentos || [];
   const [activeId, setActiveId] = useState(null);
+  const [modoDiag, setModoDiag] = useState("tecnico");
   const [cliente, setCliente] = useState("");
   const [escopo, setEscopo] = useState("segmento");
   const [segId, setSegId] = useState(segmentos[0]?.id || "");
@@ -130,6 +132,7 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
     if (activeId === rec.id) setActiveId(null);
   };
 
+  const renderTecnico = () => {
   // ---- Tela inicial ----
   if (!sessao) {
     return (
@@ -351,6 +354,20 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
         ) : null}
       </div>
       <p className="text-center text-xs text-slate-400 mt-2 font-mono">{Math.min(idx, perguntasSel.length)} / {perguntasSel.length}</p>
+    </div>
+  );
+  };
+
+  const TABS_DIAG = [["iniciais", "Perguntas iniciais"], ["tecnico", "Diagnóstico técnico"]];
+  return (
+    <div className="max-w-3xl mx-auto">
+      <div className="flex gap-1 mb-5 border-b border-slate-200">
+        {TABS_DIAG.map(([id, l]) => (
+          <button key={id} onClick={() => setModoDiag(id)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition ${modoDiag === id ? "border-teal-600 text-teal-800" : "border-transparent text-slate-500 hover:text-slate-800"}`}>{l}</button>
+        ))}
+      </div>
+      {modoDiag === "iniciais" ? <RodarAssessment base={base} diag={diag} saveDiag={saveDiag} /> : renderTecnico()}
     </div>
   );
 }

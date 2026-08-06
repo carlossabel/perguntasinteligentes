@@ -21,8 +21,7 @@ export function calcularResultado(niveis) {
   return { maturidade };
 }
 
-export default function Assessment({ base, saveBase, diag, saveDiag }) {
-  const [modo, setModo] = useState("configurar");
+export default function Assessment({ base, saveBase }) {
   const segmentos = base.segmentos || [];
   const [segId, setSegId] = useState(segmentos[0]?.id || "");
   const [novoSeg, setNovoSeg] = useState("");
@@ -38,52 +37,41 @@ export default function Assessment({ base, saveBase, diag, saveDiag }) {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <SectionTitle sub="Estágio 1 · macro. O comercial roda para ler a maturidade da empresa e levantar as oportunidades (funcionalidades) do negócio.">
-        Assessment de segmento
+      <SectionTitle sub="Configure aqui os segmentos, os campos da empresa e as perguntas iniciais. Rodá-las com um cliente acontece na aba Diagnóstico → Perguntas iniciais.">
+        Cadastro de diagnóstico
       </SectionTitle>
-      <div className="flex gap-1 mb-5 border-b border-slate-200">
-        {[["configurar", "Configurar", PencilLine], ["rodar", "Rodar assessment", Play]].map(([id, l, Icon]) => (
-          <button key={id} onClick={() => setModo(id)}
-            className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition ${modo === id ? "border-teal-600 text-teal-800" : "border-transparent text-slate-500 hover:text-slate-800"}`}>
-            <Icon className="w-4 h-4" /> {l}
-          </button>
-        ))}
-      </div>
-      {modo === "configurar" && (
-        <div className="space-y-8">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-            <h3 className="text-sm font-semibold text-teal-900 flex items-center gap-2"><Layers className="w-4 h-4" /> Segmento</h3>
-            <p className="text-xs text-slate-400 -mt-2">O segmento define as perguntas deste assessment e agrupa suas funcionalidades. Os campos da empresa são globais (valem para todos).</p>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <Label>Segmento em edição</Label>
-                <select className={inputCls} value={segId} onChange={(e) => setSegId(e.target.value)}>
-                  {segmentos.length === 0 && <option value="">— nenhum ainda —</option>}
-                  {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                </select>
-              </div>
-              <div>
-                <Label>Criar novo segmento</Label>
-                <div className="flex gap-2">
-                  <input className={inputCls} placeholder="ex.: Logística" value={novoSeg} onChange={(e) => setNovoSeg(e.target.value)} onKeyDown={(e) => e.key === "Enter" && criarSegmento()} />
-                  <button className={btnTeal + " whitespace-nowrap"} onClick={criarSegmento} disabled={!novoSeg.trim()}><Plus className="w-4 h-4" /> Criar</button>
-                </div>
+      <div className="space-y-8">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-teal-900 flex items-center gap-2"><Layers className="w-4 h-4" /> Segmento</h3>
+          <p className="text-xs text-slate-400 -mt-2">O segmento define as perguntas iniciais e agrupa suas funcionalidades. Os campos da empresa são globais (valem para todos).</p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Segmento em edição</Label>
+              <select className={inputCls} value={segId} onChange={(e) => setSegId(e.target.value)}>
+                {segmentos.length === 0 && <option value="">— nenhum ainda —</option>}
+                {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Criar novo segmento</Label>
+              <div className="flex gap-2">
+                <input className={inputCls} placeholder="ex.: Logística" value={novoSeg} onChange={(e) => setNovoSeg(e.target.value)} onKeyDown={(e) => e.key === "Enter" && criarSegmento()} />
+                <button className={btnTeal + " whitespace-nowrap"} onClick={criarSegmento} disabled={!novoSeg.trim()}><Plus className="w-4 h-4" /> Criar</button>
               </div>
             </div>
           </div>
-
-          <div className="border-t border-slate-200 pt-8">
-            <h3 className="text-sm font-semibold text-teal-900 mb-3 flex items-center gap-2"><PencilLine className="w-4 h-4" /> Perguntas do assessment {segAtual && <span className="text-slate-400 font-normal">· {segAtual.nome}</span>}</h3>
-            {segAtual ? <CadastroPerguntas base={base} saveBase={saveBase} segId={segId} /> : <p className="text-sm text-slate-400">Crie um segmento acima para cadastrar perguntas.</p>}
-          </div>
-
-          <div className="border-t border-slate-200 pt-8">
-            <h3 className="text-sm font-semibold text-teal-900 mb-3 flex items-center gap-2"><Building2 className="w-4 h-4" /> Dados da empresa <span className="text-slate-400 font-normal">· globais (preenchidos ao rodar)</span></h3>
-            <CamposEmpresa base={base} saveBase={saveBase} />
-          </div>
         </div>
-      )}
-      {modo === "rodar" && <RodarAssessment base={base} diag={diag} saveDiag={saveDiag} />}
+
+        <div className="border-t border-slate-200 pt-8">
+          <h3 className="text-sm font-semibold text-teal-900 mb-3 flex items-center gap-2"><PencilLine className="w-4 h-4" /> Perguntas iniciais {segAtual && <span className="text-slate-400 font-normal">· {segAtual.nome}</span>}</h3>
+          {segAtual ? <CadastroPerguntas base={base} saveBase={saveBase} segId={segId} /> : <p className="text-sm text-slate-400">Crie um segmento acima para cadastrar perguntas.</p>}
+        </div>
+
+        <div className="border-t border-slate-200 pt-8">
+          <h3 className="text-sm font-semibold text-teal-900 mb-3 flex items-center gap-2"><Building2 className="w-4 h-4" /> Dados da empresa <span className="text-slate-400 font-normal">· globais (preenchidos ao rodar)</span></h3>
+          <CamposEmpresa base={base} saveBase={saveBase} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -407,7 +395,7 @@ function CadastroPerguntas({ base, saveBase, segId }) {
 }
 
 /* ---------------- Rodar assessment + resultado ---------------- */
-function RodarAssessment({ base, diag, saveDiag }) {
+export function RodarAssessment({ base, diag, saveDiag }) {
   const segmentos = base.segmentos || [];
   const empresas = diag.empresas || [];
   const [empresaId, setEmpresaId] = useState(empresas[0]?.id || "__nova");
