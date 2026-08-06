@@ -409,13 +409,21 @@ function CadastroPerguntas({ base, saveBase, segId }) {
 /* ---------------- Rodar assessment + resultado ---------------- */
 function RodarAssessment({ base, diag, saveDiag }) {
   const segmentos = base.segmentos || [];
-  const [cliente, setCliente] = useState("");
+  const empresas = diag.empresas || [];
+  const [empresaId, setEmpresaId] = useState(empresas[0]?.id || "__nova");
+  const [novaEmpresa, setNovaEmpresa] = useState("");
   const [segId, setSegId] = useState(segmentos[0]?.id || "");
-  const [dados, setDados] = useState({});
+  const [dados, setDados] = useState(empresas[0]?.dados ? { ...empresas[0].dados } : {});
   const [erro, setErro] = useState("");
   const [activeId, setActiveId] = useState(null);
   const [resultado, setResultado] = useState(null);
   const scrollRef = useRef(null);
+
+  const selecionarEmpresa = (id) => {
+    setEmpresaId(id);
+    if (id === "__nova") { setDados({}); }
+    else { const e = empresas.find((x) => x.id === id); setDados(e?.dados ? { ...e.dados } : {}); }
+  };
 
   const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
   const segNome = (id) => segmentos.find((s) => s.id === id)?.nome || "—";
@@ -442,15 +450,27 @@ function RodarAssessment({ base, diag, saveDiag }) {
 
   const iniciar = () => {
     setErro("");
-    if (!cliente.trim() || !segId) return;
+    if (!segId) return;
+    let listaEmpresas = empresas;
+    let empresa;
+    if (empresaId === "__nova") {
+      if (!novaEmpresa.trim()) { setErro("Dê um nome à empresa."); return; }
+      empresa = { id: uid(), nome: novaEmpresa.trim(), dados: { ...dados }, criado_em: nowISO() };
+      listaEmpresas = [...empresas, empresa];
+    } else {
+      const atual = empresas.find((e) => e.id === empresaId);
+      if (!atual) { setErro("Escolha uma empresa."); return; }
+      empresa = { ...atual, dados: { ...atual.dados, ...dados } }; // acumula
+      listaEmpresas = empresas.map((e) => e.id === empresa.id ? empresa : e);
+    }
     const faltando = camposOrdenados(base).filter((c) => c.obrigatorio && !String(dados[c.id] || "").trim());
     if (faltando.length) { setErro("Preencha os campos obrigatórios: " + faltando.map((c) => c.label).join(", ") + "."); return; }
     const perguntaIds = perguntasDoSegmento(segId);
     if (perguntaIds.length === 0) { setErro("Esse segmento ainda não tem perguntas. Cadastre em “Configurar”."); return; }
-    const rec = { id: uid(), cliente_nome: cliente.trim(), segmento_id: segId, dados: { ...dados }, criado_em: nowISO(), status: "em_andamento", perguntaIds };
-    saveDiag({ ...diag, assessments: [...assessments, rec] });
+    const rec = { id: uid(), empresa_id: empresa.id, cliente_nome: empresa.nome, segmento_id: segId, dados: { ...dados }, criado_em: nowISO(), status: "em_andamento", perguntaIds };
+    saveDiag({ ...diag, empresas: listaEmpresas, assessments: [...assessments, rec] });
     setActiveId(rec.id); setResultado(null);
-    setCliente(""); setDados({});
+    setNovaEmpresa(""); setDados({}); setEmpresaId(empresa.id);
   };
 
   const escolher = (op) => {
@@ -537,7 +557,7 @@ function RodarAssessment({ base, diag, saveDiag }) {
             })}
           </div>
         </div>
-        <button className={btnGhost} onClick={() => { setResultado(null); }}>Novo assessment</button>
+        <button className={btnGhost} onClick={() => { setResultado(null); setEmpresaId("__nova"); setNovaEmpresa(""); setDados({}); }}>Novo assessment</button>
       </div>
     );
   }
@@ -597,7 +617,15 @@ function RodarAssessment({ base, diag, saveDiag }) {
     <div className="space-y-5">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
         {erro && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{erro}</div>}
-        <div><Label>Cliente</Label><input className={inputCls} placeholder="Nome da empresa" value={cliente} onChange={(e) => setCliente(e.target.value)} /></div>
+        <div><Label>Empresa</Label>
+          <select className={inputCls} value={empresaId} onChange={(e) => selecionarEmpresa(e.target.value)}>
+            <option value="__nova">+ Nova empresa</option>
+            {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+          </select>
+          {empresaId === "__nova"
+            ? <input className={inputCls + " mt-2"} placeholder="Nome da nova empresa" value={novaEmpresa} onChange={(e) => setNovaEmpresa(e.target.value)} />
+            : <p className="text-xs text-slate-400 mt-1">Os dados abaixo vêm desta empresa e vão sendo enriquecidos a cada fase.</p>}
+        </div>
         <div><Label>Segmento</Label>
           <select className={inputCls} value={segId} onChange={(e) => setSegId(e.target.value)}>{segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}</select>
         </div>
@@ -611,7 +639,7 @@ function RodarAssessment({ base, diag, saveDiag }) {
             ))}
           </div>
         )}
-        <button className={btnTeal} onClick={iniciar} disabled={!cliente.trim() || !segId}><Play className="w-4 h-4" /> Iniciar assessment</button>
+        <button className={btnTeal} onClick={iniciar} disabled={!segId || (empresaId === "__nova" && !novaEmpresa.trim())}><Play className="w-4 h-4" /> Iniciar assessment</button>
       </div>
 
       {emAndamento.length > 0 && (

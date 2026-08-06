@@ -34,6 +34,22 @@ function getData() {
   if (!Array.isArray(d.base.assessmentOpcoes)) { d.base.assessmentOpcoes = []; mudou = true; }
   if (!Array.isArray(d.diag.assessments)) { d.diag.assessments = []; mudou = true; }
   if (!Array.isArray(d.diag.assessmentRespostas)) { d.diag.assessmentRespostas = []; mudou = true; }
+  // Entidade Empresa (Fatia 1): pivô que acumula ao longo das fases.
+  if (!Array.isArray(d.diag.empresas)) { d.diag.empresas = []; mudou = true; }
+  const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  (d.diag.assessments || []).forEach((a) => {
+    if (a.empresa_id) return;
+    const key = (a.cliente_nome || "").trim().toLowerCase();
+    let emp = d.diag.empresas.find((e) => (e.nome || "").trim().toLowerCase() === key);
+    if (!emp) {
+      emp = { id: genId(), nome: a.cliente_nome || "Empresa", dados: { ...(a.dados || {}) }, criado_em: a.criado_em || new Date().toISOString() };
+      d.diag.empresas.push(emp);
+    } else {
+      Object.entries(a.dados || {}).forEach(([k, v]) => { if (v && !emp.dados[k]) emp.dados[k] = v; });
+    }
+    a.empresa_id = emp.id;
+    mudou = true;
+  });
   // Ficha da empresa: campos definidos pelo usuário. Semeia 3 exemplos na 1a vez.
   if (!Array.isArray(d.base.camposEmpresa)) {
     d.base.camposEmpresa = [
