@@ -226,7 +226,7 @@ function CadastroPerguntas({ base, saveBase, segId }) {
   const [showDica, setShowDica] = useState(false);
   const formRef = useRef(null);
 
-  const iaCount = perguntas.filter((p) => p.origem === "ia").length;
+  const iaCount = (base.assessmentPerguntas || []).filter((p) => p.segmento_id === segId && p.origem === "ia").length;
 
   const limparIA = () => {
     if (!iaCount) return;
