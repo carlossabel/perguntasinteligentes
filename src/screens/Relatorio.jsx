@@ -4,7 +4,7 @@ import { VEREDITOS, VEREDITO_ORDER, fmtDate, btnGhost, VeredictoChip, Field, Lab
 
 export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
   const [copied, setCopied] = useState(false);
-  const diags = [...diag.diagnosticos].reverse();
+  const diags = [...diag.diagnosticos].filter((x) => x.status !== "em_andamento").reverse();
   const d = diag.diagnosticos.find((x) => x.id === selectedId) || diags[0];
   const areaNome = (id) => base.areas.find((a) => a.id === id)?.nome || "—";
   const escopoLabel = (x) => x?.escopo_label || (x?.area_id ? "Área · " + areaNome(x.area_id) : "—");

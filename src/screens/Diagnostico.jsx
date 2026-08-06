@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from "react";
-import { MessageSquare, ChevronRight, Send, ArrowLeft, X, FileText, Layers, Grid3x3, Box, ListChecks } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { MessageSquare, ChevronRight, Send, ArrowLeft, X, FileText, Layers, Grid3x3, Box, ListChecks, Play, Plus } from "lucide-react";
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
 
 const ESCOPOS = [
@@ -11,15 +11,14 @@ const ESCOPOS = [
 
 export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   const segmentos = base.segmentos || [];
-  const [sessao, setSessao] = useState(null);
+  const [activeId, setActiveId] = useState(null);
   const [cliente, setCliente] = useState("");
   const [escopo, setEscopo] = useState("segmento");
   const [segId, setSegId] = useState(segmentos[0]?.id || "");
   const [areaSelId, setAreaSelId] = useState(base.areas[0]?.id || "");
   const [funcId, setFuncId] = useState(base.funcionalidades[0]?.id || "");
   const [customIds, setCustomIds] = useState([]);
-  const [idx, setIdx] = useState(0);
-  const [respostas, setRespostas] = useState([]);
+  const [erro, setErro] = useState("");
   const [outroAberto, setOutroAberto] = useState(false);
   const [textoOutro, setTextoOutro] = useState("");
   const scrollRef = useRef(null);
@@ -27,9 +26,26 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   const areaNome = (id) => base.areas.find((a) => a.id === id)?.nome || "—";
   const segNome = (id) => segmentos.find((s) => s.id === id)?.nome || "—";
   const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
+  const perguntaById = (id) => base.perguntas.find((p) => p.id === id);
+  const opById = (id) => base.opcoes.find((o) => o.id === id);
   const escopoLabelDe = (d) => d.escopo_label || (d.area_id ? "Área · " + areaNome(d.area_id) : "—");
 
-  // Resolve o conjunto de funcionalidades conforme o escopo escolhido.
+  const diagnosticos = diag.diagnosticos || [];
+  const emAndamento = diagnosticos.filter((d) => d.status === "em_andamento");
+  const concluidos = diagnosticos.filter((d) => d.status !== "em_andamento");
+  const sessao = activeId ? diagnosticos.find((d) => d.id === activeId && d.status === "em_andamento") : null;
+
+  // Perguntas da sessão: snapshot congelado (perguntaIds), na ordem salva.
+  const perguntasSel = sessao
+    ? (sessao.perguntaIds || []).map((pid) => perguntaById(pid)).filter(Boolean)
+        .map((p) => ({ ...p, opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem) }))
+    : [];
+  const respostasSessao = sessao ? (diag.respostas || []).filter((r) => r.diagnostico_id === sessao.id) : [];
+  const idx = respostasSessao.length;
+  const pergunta = perguntasSel[idx];
+
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [idx, activeId, outroAberto]);
+
   const resolverFuncIds = () => {
     if (escopo === "segmento") {
       const areaIds = base.areas.filter((a) => a.segmento_id === segId).map((a) => a.id);
@@ -39,25 +55,13 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
     if (escopo === "funcionalidade") return funcId ? [funcId] : [];
     return customIds;
   };
-
   const rotuloEscopo = () => {
     if (escopo === "segmento") return "Segmento · " + segNome(segId);
     if (escopo === "area") return "Área · " + areaNome(areaSelId);
     if (escopo === "funcionalidade") return "Funcionalidade · " + funcNome(funcId);
     return `Customizado · ${customIds.length} funcionalidade${customIds.length === 1 ? "" : "s"}`;
   };
-
-  const perguntasSel = useMemo(() => {
-    if (!sessao) return [];
-    const fids = sessao.func_ids || [];
-    return base.perguntas
-      .filter((p) => fids.includes(p.funcionalidade_id) && p.status === "aprovada")
-      .map((p) => ({ ...p, opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem) }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessao]);
-
-  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [respostas, idx, outroAberto]);
-
+  const perguntasAprovadas = (funcIds) => base.perguntas.filter((p) => funcIds.includes(p.funcionalidade_id) && p.status === "aprovada").map((p) => p.id);
   const selecaoValida = () => {
     if (escopo === "segmento") return !!segId;
     if (escopo === "area") return !!areaSelId;
@@ -66,19 +70,21 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   };
 
   const iniciar = () => {
+    setErro("");
     if (!cliente.trim() || !selecaoValida()) return;
     const func_ids = resolverFuncIds();
-    setSessao({
+    const perguntaIds = perguntasAprovadas(func_ids);
+    if (!perguntaIds.length) { setErro("Nenhuma pergunta aprovada nesse escopo. Cadastre e aprove perguntas antes."); return; }
+    const rec = {
       id: uid(), cliente_nome: cliente.trim(), criado_em: nowISO(), status: "em_andamento",
-      escopo, escopo_label: rotuloEscopo(), func_ids,
+      escopo, escopo_label: rotuloEscopo(), func_ids, perguntaIds,
       area_id: escopo === "area" ? areaSelId : undefined,
-    });
-    setRespostas([]); setIdx(0); setOutroAberto(false); setTextoOutro("");
+    };
+    saveDiag({ ...diag, diagnosticos: [...diagnosticos, rec] });
+    setActiveId(rec.id); setOutroAberto(false); setTextoOutro(""); setCliente("");
   };
 
   const toggleCustom = (fid) => setCustomIds((c) => c.includes(fid) ? c.filter((x) => x !== fid) : [...c, fid]);
-
-  const pergunta = perguntasSel[idx];
 
   const escolher = (opcao) => {
     if (opcao.veredito === "rever") { setOutroAberto(true); return; }
@@ -87,28 +93,42 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   const confirmarOutro = () => {
     if (!textoOutro.trim()) return;
     registrar(pergunta.opcoes.find((o) => o.veredito === "rever"), textoOutro.trim());
-    setOutroAberto(false); setTextoOutro("");
   };
   const registrar = (opcao, outro) => {
-    const r = { id: uid(), diagnostico_id: sessao.id, pergunta_id: pergunta.id, opcao_id: opcao.id, texto_outro: outro, criado_em: nowISO() };
-    const novas = [...respostas, r];
-    setRespostas(novas);
-    if (idx + 1 >= perguntasSel.length) finalizar(novas);
-    else setIdx(idx + 1);
-  };
-  const finalizar = (novas) => {
-    const dConcluido = { ...sessao, status: "concluido" };
-    saveDiag({ diagnosticos: [...diag.diagnosticos, dConcluido], respostas: [...diag.respostas, ...novas] });
-    setSessao(null);
-    goToReport(dConcluido.id);
+    const novaResp = { id: uid(), diagnostico_id: sessao.id, pergunta_id: pergunta.id, opcao_id: opcao.id, texto_outro: outro, criado_em: nowISO() };
+    const todas = [...respostasSessao, novaResp];
+    const ultima = todas.length >= perguntasSel.length;
+    let novosDiagnosticos = diagnosticos;
+    if (ultima) novosDiagnosticos = diagnosticos.map((d) => d.id === sessao.id ? { ...d, status: "concluido" } : d);
+    saveDiag({ ...diag, diagnosticos: novosDiagnosticos, respostas: [...(diag.respostas || []), novaResp] });
+    setOutroAberto(false); setTextoOutro("");
+    if (ultima) { const id = sessao.id; setActiveId(null); goToReport(id); }
   };
 
+  const incluirNovas = () => {
+    const novas = perguntasAprovadas(sessao.func_ids).filter((pid) => !(sessao.perguntaIds || []).includes(pid));
+    if (!novas.length) return;
+    const novosDiagnosticos = diagnosticos.map((d) => d.id === sessao.id ? { ...d, perguntaIds: [...d.perguntaIds, ...novas] } : d);
+    saveDiag({ ...diag, diagnosticos: novosDiagnosticos });
+  };
+
+  const descartar = (rec) => {
+    if (!confirm("Descartar este diagnóstico e suas respostas?")) return;
+    saveDiag({
+      ...diag,
+      diagnosticos: diagnosticos.filter((d) => d.id !== rec.id),
+      respostas: (diag.respostas || []).filter((r) => r.diagnostico_id !== rec.id),
+    });
+    if (activeId === rec.id) setActiveId(null);
+  };
+
+  // ---- Tela inicial ----
   if (!sessao) {
-    const anteriores = [...diag.diagnosticos].reverse();
     return (
       <div className="max-w-2xl mx-auto">
         <SectionTitle sub="Escolha o cliente e o escopo. Carrega só o que está aprovado.">Bot de diagnóstico</SectionTitle>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+          {erro && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{erro}</div>}
           <div><Label>Cliente</Label><input className={inputCls} placeholder="Nome da empresa" value={cliente} onChange={(e) => setCliente(e.target.value)} /></div>
 
           <div>
@@ -176,11 +196,36 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
           <button className={btnTeal} onClick={iniciar} disabled={!cliente.trim() || !selecaoValida()}><MessageSquare className="w-4 h-4" /> Iniciar diagnóstico</button>
         </div>
 
-        {anteriores.length > 0 && (
+        {emAndamento.length > 0 && (
           <div className="mt-6">
-            <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Diagnósticos anteriores</h3>
+            <h3 className="font-mono text-xs uppercase tracking-widest text-amber-600 mb-2">Em andamento ({emAndamento.length})</h3>
             <div className="space-y-2">
-              {anteriores.map((d) => (
+              {[...emAndamento].reverse().map((d) => {
+                const total = (d.perguntaIds || []).length;
+                const feitas = (diag.respostas || []).filter((r) => r.diagnostico_id === d.id).length;
+                return (
+                  <div key={d.id} className="rounded-lg border border-amber-200 bg-amber-50/40 px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-slate-800">{d.cliente_nome}</div>
+                        <div className="text-xs text-slate-400 font-mono">{escopoLabelDe(d)} · {feitas}/{total} respondidas · {fmtDate(d.criado_em)}</div>
+                      </div>
+                      <button className={btnTeal + " !py-1.5"} onClick={() => setActiveId(d.id)}><Play className="w-3.5 h-3.5" /> Continuar</button>
+                      <button className="text-xs text-slate-400 hover:text-red-600" onClick={() => descartar(d)}>descartar</button>
+                    </div>
+                    <div className="h-1 w-full rounded-full bg-amber-200 mt-2 overflow-hidden"><div className="h-full bg-amber-500" style={{ width: `${total ? (feitas / total) * 100 : 0}%` }} /></div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {concluidos.length > 0 && (
+          <div className="mt-6">
+            <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Diagnósticos concluídos</h3>
+            <div className="space-y-2">
+              {[...concluidos].reverse().map((d) => (
                 <button key={d.id} onClick={() => goToReport(d.id)} className="w-full flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-left hover:border-teal-400 transition">
                   <div className="flex-1">
                     <div className="text-sm font-medium text-slate-800">{d.cliente_nome}</div>
@@ -196,20 +241,23 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
     );
   }
 
+  // ---- Sessão sem perguntas (snapshot vazio) ----
   if (perguntasSel.length === 0) {
     return (
       <div className="max-w-2xl mx-auto">
-        <Empty icon={MessageSquare} title="Nenhuma pergunta aprovada nesse escopo" hint="Cadastre funcionalidades e aprove perguntas antes de diagnosticar." />
-        <div className="text-center"><button className={btnGhost} onClick={() => setSessao(null)}><ArrowLeft className="w-4 h-4" /> Voltar</button></div>
+        <Empty icon={MessageSquare} title="Sem perguntas nesta execução" hint="As perguntas deste diagnóstico podem ter sido removidas." />
+        <div className="text-center flex gap-2 justify-center">
+          <button className={btnGhost} onClick={() => setActiveId(null)}><ArrowLeft className="w-4 h-4" /> Voltar</button>
+          <button className="text-xs text-slate-400 hover:text-red-600" onClick={() => descartar(sessao)}>descartar</button>
+        </div>
       </div>
     );
   }
 
-  const answered = respostas.map((r) => {
-    const p = perguntasSel.find((x) => x.id === r.pergunta_id) || base.perguntas.find((x) => x.id === r.pergunta_id);
-    const o = base.opcoes.find((x) => x.id === r.opcao_id);
-    return { p, o, outro: r.texto_outro };
-  });
+  // ---- Tela de responder ----
+  const concluiu = idx >= perguntasSel.length;
+  const answered = respostasSessao.map((r) => ({ p: perguntaById(r.pergunta_id), o: opById(r.opcao_id), outro: r.texto_outro }));
+  const novasDisponiveis = perguntasAprovadas(sessao.func_ids).filter((pid) => !(sessao.perguntaIds || []).includes(pid)).length;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -218,7 +266,11 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
           <span className="text-sm font-medium text-slate-800">{sessao.cliente_nome}</span>
           <span className="text-xs text-slate-400 font-mono ml-2">{sessao.escopo_label}</span>
         </div>
-        <button className="text-xs text-slate-400 hover:text-red-600 inline-flex items-center gap-1" onClick={() => setSessao(null)}><X className="w-3 h-3" /> abandonar</button>
+        <div className="flex items-center gap-3">
+          {novasDisponiveis > 0 && <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={incluirNovas}><Plus className="w-3 h-3" /> incluir {novasDisponiveis} nova{novasDisponiveis > 1 ? "s" : ""}</button>}
+          <button className="text-xs text-slate-400 hover:text-slate-700" onClick={() => setActiveId(null)} title="Sai e mantém salvo para continuar depois">pausar</button>
+          <button className="text-xs text-slate-400 hover:text-red-600 inline-flex items-center gap-1" onClick={() => descartar(sessao)}><X className="w-3 h-3" /> descartar</button>
+        </div>
       </div>
 
       <div className="h-1.5 w-full rounded-full bg-slate-200 mb-4 overflow-hidden">
@@ -233,30 +285,32 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
           </div>
         ))}
 
-        <div className="space-y-3 pt-1">
-          <div className="text-sm text-slate-800 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs font-medium">{pergunta.texto}</div>
-          {!outroAberto ? (
-            <div className="grid gap-2">
-              {pergunta.opcoes.map((o) => (
-                <button key={o.id} onClick={() => escolher(o)} className="text-left text-sm rounded-xl border border-slate-300 px-4 py-2.5 hover:border-teal-500 hover:bg-teal-50 transition flex items-center justify-between group">
-                  <span className="text-slate-700">{o.texto}</span>
-                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-600" />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-teal-300 bg-teal-50 p-3">
-              <Label>Descreva (obrigatório)</Label>
-              <textarea className={inputCls} autoFocus value={textoOutro} onChange={(e) => setTextoOutro(e.target.value)} placeholder="Como funciona no caso de vocês…" />
-              <div className="flex gap-2 mt-2">
-                <button className={btnTeal} onClick={confirmarOutro} disabled={!textoOutro.trim()}><Send className="w-4 h-4" /> Enviar</button>
-                <button className={btnGhost} onClick={() => { setOutroAberto(false); setTextoOutro(""); }}>Voltar às opções</button>
+        {!concluiu && (
+          <div className="space-y-3 pt-1">
+            <div className="text-sm text-slate-800 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs font-medium">{pergunta.texto}</div>
+            {!outroAberto ? (
+              <div className="grid gap-2">
+                {pergunta.opcoes.map((o) => (
+                  <button key={o.id} onClick={() => escolher(o)} className="text-left text-sm rounded-xl border border-slate-300 px-4 py-2.5 hover:border-teal-500 hover:bg-teal-50 transition flex items-center justify-between group">
+                    <span className="text-slate-700">{o.texto}</span>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-600" />
+                  </button>
+                ))}
               </div>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="rounded-xl border border-teal-300 bg-teal-50 p-3">
+                <Label>Descreva (obrigatório)</Label>
+                <textarea className={inputCls} autoFocus value={textoOutro} onChange={(e) => setTextoOutro(e.target.value)} placeholder="Como funciona no caso de vocês…" />
+                <div className="flex gap-2 mt-2">
+                  <button className={btnTeal} onClick={confirmarOutro} disabled={!textoOutro.trim()}><Send className="w-4 h-4" /> Enviar</button>
+                  <button className={btnGhost} onClick={() => { setOutroAberto(false); setTextoOutro(""); }}>Voltar às opções</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      <p className="text-center text-xs text-slate-400 mt-2 font-mono">{idx + 1} / {perguntasSel.length}</p>
+      <p className="text-center text-xs text-slate-400 mt-2 font-mono">{Math.min(idx, perguntasSel.length)} / {perguntasSel.length}</p>
     </div>
   );
 }

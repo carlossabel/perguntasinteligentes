@@ -21,22 +21,32 @@ export function calcularResultado(niveis) {
 }
 
 export default function Assessment({ base, saveBase, diag, saveDiag }) {
-  const [modo, setModo] = useState("perguntas");
+  const [modo, setModo] = useState("configurar");
   return (
     <div className="max-w-3xl mx-auto">
       <SectionTitle sub="Estágio 1 · macro. O comercial roda para ler a maturidade da empresa e levantar as oportunidades (funcionalidades) do negócio.">
         Assessment de segmento
       </SectionTitle>
       <div className="flex gap-1 mb-5 border-b border-slate-200">
-        {[["perguntas", "Perguntas", PencilLine], ["empresa", "Dados da empresa", Building2], ["rodar", "Rodar assessment", Play]].map(([id, l, Icon]) => (
+        {[["configurar", "Configurar", PencilLine], ["rodar", "Rodar assessment", Play]].map(([id, l, Icon]) => (
           <button key={id} onClick={() => setModo(id)}
             className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition ${modo === id ? "border-teal-600 text-teal-800" : "border-transparent text-slate-500 hover:text-slate-800"}`}>
             <Icon className="w-4 h-4" /> {l}
           </button>
         ))}
       </div>
-      {modo === "perguntas" && <CadastroPerguntas base={base} saveBase={saveBase} />}
-      {modo === "empresa" && <CamposEmpresa base={base} saveBase={saveBase} />}
+      {modo === "configurar" && (
+        <div className="space-y-8">
+          <div>
+            <h3 className="text-sm font-semibold text-teal-900 mb-3 flex items-center gap-2"><Building2 className="w-4 h-4" /> Dados da empresa (campos que você vai preencher ao rodar)</h3>
+            <CamposEmpresa base={base} saveBase={saveBase} />
+          </div>
+          <div className="border-t border-slate-200 pt-8">
+            <h3 className="text-sm font-semibold text-teal-900 mb-3 flex items-center gap-2"><PencilLine className="w-4 h-4" /> Perguntas do assessment</h3>
+            <CadastroPerguntas base={base} saveBase={saveBase} />
+          </div>
+        </div>
+      )}
       {modo === "rodar" && <RodarAssessment base={base} diag={diag} saveDiag={saveDiag} />}
     </div>
   );
@@ -243,53 +253,82 @@ function RodarAssessment({ base, diag, saveDiag }) {
   const [segId, setSegId] = useState(segmentos[0]?.id || "");
   const [dados, setDados] = useState({});
   const [erro, setErro] = useState("");
-  const [sessao, setSessao] = useState(null);
-  const [idx, setIdx] = useState(0);
-  const [picks, setPicks] = useState([]);
+  const [activeId, setActiveId] = useState(null);
   const [resultado, setResultado] = useState(null);
   const scrollRef = useRef(null);
 
   const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
   const segNome = (id) => segmentos.find((s) => s.id === id)?.nome || "—";
+  const perguntaById = (id) => (base.assessmentPerguntas || []).find((p) => p.id === id);
+  const opById = (id) => (base.assessmentOpcoes || []).find((o) => o.id === id);
+  const opcoesDe = (pid) => (base.assessmentOpcoes || []).filter((o) => o.pergunta_id === pid).sort((a, b) => a.ordem - b.ordem);
 
-  const perguntas = useMemo(() => {
-    if (!sessao) return [];
-    return (base.assessmentPerguntas || [])
-      .filter((p) => p.segmento_id === sessao.segmento_id).sort((a, b) => a.ordem - b.ordem)
-      .map((p) => ({ ...p, opcoes: (base.assessmentOpcoes || []).filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem) }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessao]);
+  const assessments = diag.assessments || [];
+  const emAndamento = assessments.filter((a) => a.status === "em_andamento");
+  const concluidos = assessments.filter((a) => a.status !== "em_andamento");
 
-  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [picks, idx]);
+  const sessao = activeId ? assessments.find((a) => a.id === activeId && a.status === "em_andamento") : null;
+
+  // Perguntas da sessão: snapshot congelado (perguntaIds), na ordem salva.
+  const perguntas = sessao
+    ? (sessao.perguntaIds || []).map((pid) => perguntaById(pid)).filter(Boolean).map((p) => ({ ...p, opcoes: opcoesDe(p.id) }))
+    : [];
+  const respostasSessao = sessao ? (diag.assessmentRespostas || []).filter((r) => r.assessment_id === sessao.id) : [];
+  const idx = respostasSessao.length;
+
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [idx, activeId]);
+
+  const perguntasDoSegmento = (sid) => (base.assessmentPerguntas || []).filter((p) => p.segmento_id === sid).sort((a, b) => a.ordem - b.ordem).map((p) => p.id);
 
   const iniciar = () => {
     setErro("");
     if (!cliente.trim() || !segId) return;
     const faltando = camposOrdenados(base).filter((c) => c.obrigatorio && !String(dados[c.id] || "").trim());
     if (faltando.length) { setErro("Preencha os campos obrigatórios: " + faltando.map((c) => c.label).join(", ") + "."); return; }
-    setSessao({ id: uid(), cliente_nome: cliente.trim(), segmento_id: segId, dados: { ...dados }, criado_em: nowISO() });
-    setIdx(0); setPicks([]); setResultado(null);
+    const perguntaIds = perguntasDoSegmento(segId);
+    if (perguntaIds.length === 0) { setErro("Esse segmento ainda não tem perguntas. Cadastre em “Configurar”."); return; }
+    const rec = { id: uid(), cliente_nome: cliente.trim(), segmento_id: segId, dados: { ...dados }, criado_em: nowISO(), status: "em_andamento", perguntaIds };
+    saveDiag({ ...diag, assessments: [...assessments, rec] });
+    setActiveId(rec.id); setResultado(null);
+    setCliente(""); setDados({});
   };
 
   const escolher = (op) => {
-    const novas = [...picks, op];
-    setPicks(novas);
-    if (idx + 1 >= perguntas.length) finalizar(novas);
-    else setIdx(idx + 1);
+    const novaResp = { id: uid(), assessment_id: sessao.id, pergunta_id: perguntas[idx].id, opcao_id: op.id, criado_em: nowISO() };
+    const todas = [...respostasSessao, novaResp];
+    const ultima = todas.length >= perguntas.length;
+    let novosAssessments = assessments;
+    let concluido = null;
+    if (ultima) {
+      const opts = todas.map((r) => opById(r.opcao_id));
+      const niveis = opts.map((o) => (o ? o.nivel : 0));
+      const oportunidades = [...new Set(opts.flatMap((o) => (o ? o.oportunidades : [])))];
+      const r = calcularResultado(niveis);
+      novosAssessments = assessments.map((a) => a.id === sessao.id ? { ...a, status: "concluido", ...r, oportunidades } : a);
+      concluido = novosAssessments.find((a) => a.id === sessao.id);
+    }
+    saveDiag({ ...diag, assessments: novosAssessments, assessmentRespostas: [...(diag.assessmentRespostas || []), novaResp] });
+    if (ultima) { setResultado(concluido); setActiveId(null); }
   };
 
-  const finalizar = (novas) => {
-    const niveis = novas.map((o) => o.nivel);
-    const oportunidades = [...new Set(novas.flatMap((o) => o.oportunidades))];
-    const r = calcularResultado(niveis);
-    const registro = { id: sessao.id, cliente_nome: sessao.cliente_nome, segmento_id: sessao.segmento_id, dados: sessao.dados || {}, criado_em: sessao.criado_em, status: "concluido", ...r, oportunidades };
-    const respostas = novas.map((o) => ({ id: uid(), assessment_id: sessao.id, pergunta_id: o.pergunta_id, opcao_id: o.id, criado_em: nowISO() }));
-    saveDiag({ ...diag, assessments: [...(diag.assessments || []), registro], assessmentRespostas: [...(diag.assessmentRespostas || []), ...respostas] });
-    setResultado({ ...registro });
-    setSessao(null);
+  const incluirNovas = () => {
+    const novas = perguntasDoSegmento(sessao.segmento_id).filter((pid) => !(sessao.perguntaIds || []).includes(pid));
+    if (!novas.length) return;
+    const novosAssessments = assessments.map((a) => a.id === sessao.id ? { ...a, perguntaIds: [...a.perguntaIds, ...novas] } : a);
+    saveDiag({ ...diag, assessments: novosAssessments });
   };
 
-  // Tela de resultado
+  const descartar = (rec) => {
+    if (!confirm("Descartar esta execução e suas respostas?")) return;
+    saveDiag({
+      ...diag,
+      assessments: assessments.filter((a) => a.id !== rec.id),
+      assessmentRespostas: (diag.assessmentRespostas || []).filter((r) => r.assessment_id !== rec.id),
+    });
+    if (activeId === rec.id) setActiveId(null);
+  };
+
+  // ---- Tela de resultado ----
   if (resultado) {
     return (
       <div className="space-y-5">
@@ -320,28 +359,34 @@ function RodarAssessment({ base, diag, saveDiag }) {
             </div>}
           {resultado.oportunidades.length > 0 && <p className="text-xs text-slate-400 mt-2">Na próxima fatia, estas viram a seleção do diagnóstico técnico (estágio 2).</p>}
         </div>
-        <button className={btnGhost} onClick={() => { setResultado(null); setCliente(""); setDados({}); }}>Novo assessment</button>
+        <button className={btnGhost} onClick={() => { setResultado(null); }}>Novo assessment</button>
       </div>
     );
   }
 
-  // Tela de responder
+  // ---- Tela de responder ----
   if (sessao) {
     if (perguntas.length === 0) {
       return (
         <div>
-          <Empty icon={Gauge} title="Sem perguntas nesse segmento" hint="Cadastre perguntas na aba “Perguntas” antes de rodar." />
-          <div className="text-center"><button className={btnGhost} onClick={() => setSessao(null)}>Voltar</button></div>
+          <Empty icon={Gauge} title="Sem perguntas nesse segmento" hint="Cadastre perguntas em “Configurar” antes de rodar." />
+          <div className="text-center"><button className={btnGhost} onClick={() => setActiveId(null)}>Voltar</button></div>
         </div>
       );
     }
-    const p = perguntas[idx];
-    const answered = picks.map((o, i) => ({ q: perguntas[i]?.texto, a: o.texto }));
+    const concluiu = idx >= perguntas.length;
+    const p = perguntas[Math.min(idx, perguntas.length - 1)];
+    const answered = respostasSessao.map((r) => ({ q: perguntaById(r.pergunta_id)?.texto, a: opById(r.opcao_id)?.texto || "(opção removida)" }));
+    const novasDisponiveis = perguntasDoSegmento(sessao.segmento_id).filter((pid) => !(sessao.perguntaIds || []).includes(pid)).length;
     return (
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-slate-800">{sessao.cliente_nome} <span className="text-xs text-slate-400 font-mono ml-1">{segNome(sessao.segmento_id)}</span></span>
-          <button className="text-xs text-slate-400 hover:text-red-600" onClick={() => setSessao(null)}>abandonar</button>
+          <div className="flex items-center gap-3">
+            {novasDisponiveis > 0 && <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={incluirNovas}><Plus className="w-3 h-3" /> incluir {novasDisponiveis} nova{novasDisponiveis > 1 ? "s" : ""}</button>}
+            <button className="text-xs text-slate-400 hover:text-slate-700" onClick={() => setActiveId(null)} title="Sai e mantém salvo para continuar depois">pausar</button>
+            <button className="text-xs text-slate-400 hover:text-red-600" onClick={() => descartar(sessao)}>descartar</button>
+          </div>
         </div>
         <div className="h-1.5 w-full rounded-full bg-slate-200 mb-4 overflow-hidden"><div className="h-full bg-teal-600 transition-all" style={{ width: `${(idx / perguntas.length) * 100}%` }} /></div>
         <div ref={scrollRef} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 overflow-y-auto" style={{ maxHeight: "52vh" }}>
@@ -351,24 +396,25 @@ function RodarAssessment({ base, diag, saveDiag }) {
               <div className="flex justify-end"><div className="text-sm text-white bg-teal-700 rounded-2xl rounded-tr-sm px-4 py-2.5 inline-block max-w-xs">{a.a}</div></div>
             </div>
           ))}
-          <div className="space-y-3 pt-1">
-            <div className="text-sm text-slate-800 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs font-medium">{p.texto}</div>
-            <div className="grid gap-2">
-              {p.opcoes.map((o) => (
-                <button key={o.id} onClick={() => escolher(o)} className="text-left text-sm rounded-xl border border-slate-300 px-4 py-2.5 hover:border-teal-500 hover:bg-teal-50 transition flex items-center justify-between group">
-                  <span className="text-slate-700">{o.texto}</span><ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-600" />
-                </button>
-              ))}
+          {!concluiu && (
+            <div className="space-y-3 pt-1">
+              <div className="text-sm text-slate-800 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs font-medium">{p.texto}</div>
+              <div className="grid gap-2">
+                {p.opcoes.map((o) => (
+                  <button key={o.id} onClick={() => escolher(o)} className="text-left text-sm rounded-xl border border-slate-300 px-4 py-2.5 hover:border-teal-500 hover:bg-teal-50 transition flex items-center justify-between group">
+                    <span className="text-slate-700">{o.texto}</span><ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-600" />
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
-        <p className="text-center text-xs text-slate-400 mt-2 font-mono">{idx + 1} / {perguntas.length}</p>
+        <p className="text-center text-xs text-slate-400 mt-2 font-mono">{Math.min(idx, perguntas.length)} / {perguntas.length}</p>
       </div>
     );
   }
 
-  // Tela inicial
-  const anteriores = [...(diag.assessments || [])].reverse();
+  // ---- Tela inicial ----
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
@@ -389,12 +435,38 @@ function RodarAssessment({ base, diag, saveDiag }) {
         )}
         <button className={btnTeal} onClick={iniciar} disabled={!cliente.trim() || !segId}><Play className="w-4 h-4" /> Iniciar assessment</button>
       </div>
-      {anteriores.length > 0 && (
+
+      {emAndamento.length > 0 && (
         <div>
-          <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Assessments anteriores</h3>
+          <h3 className="font-mono text-xs uppercase tracking-widest text-amber-600 mb-2">Em andamento ({emAndamento.length})</h3>
           <div className="space-y-2">
-            {anteriores.map((d) => (
-              <button key={d.id} onClick={() => setResultado(d)} className="w-full flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-left hover:border-teal-400 transition">
+            {[...emAndamento].reverse().map((d) => {
+              const total = (d.perguntaIds || []).length;
+              const feitas = (diag.assessmentRespostas || []).filter((r) => r.assessment_id === d.id).length;
+              return (
+                <div key={d.id} className="rounded-lg border border-amber-200 bg-amber-50/40 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-slate-800">{d.cliente_nome}</div>
+                      <div className="text-xs text-slate-400 font-mono">{segNome(d.segmento_id)} · {feitas}/{total} respondidas · {fmtDate(d.criado_em)}</div>
+                    </div>
+                    <button className={btnTeal + " !py-1.5"} onClick={() => { setResultado(null); setActiveId(d.id); }}><Play className="w-3.5 h-3.5" /> Continuar</button>
+                    <button className="text-xs text-slate-400 hover:text-red-600" onClick={() => descartar(d)}>descartar</button>
+                  </div>
+                  <div className="h-1 w-full rounded-full bg-amber-200 mt-2 overflow-hidden"><div className="h-full bg-amber-500" style={{ width: `${total ? (feitas / total) * 100 : 0}%` }} /></div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {concluidos.length > 0 && (
+        <div>
+          <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Assessments concluídos</h3>
+          <div className="space-y-2">
+            {[...concluidos].reverse().map((d) => (
+              <button key={d.id} onClick={() => { setActiveId(null); setResultado(d); }} className="w-full flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-left hover:border-teal-400 transition">
                 <div className="flex-1">
                   <div className="text-sm font-medium text-slate-800">{d.cliente_nome}</div>
                   <div className="text-xs text-slate-400 font-mono">{segNome(d.segmento_id)} · maturidade {d.maturidade} · {d.oportunidades?.length || 0} oportunidades · {fmtDate(d.criado_em)}</div>
