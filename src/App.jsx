@@ -9,8 +9,8 @@ import Relatorio from "./screens/Relatorio.jsx";
 import Base from "./screens/Base.jsx";
 
 const TABS = [
-  { id: "assessment", label: "Assessment", icon: Gauge },
-  { id: "cadastro", label: "Cadastro", icon: Sparkles },
+  { id: "assessment", label: "Assessment inicial", icon: Gauge },
+  { id: "cadastro", label: "Cadastro perguntas", icon: Sparkles },
   { id: "curadoria", label: "Curadoria", icon: ClipboardCheck },
   { id: "diagnostico", label: "Diagnóstico", icon: MessageSquare },
   { id: "relatorio", label: "Relatório", icon: FileText },

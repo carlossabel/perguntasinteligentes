@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Gauge, Plus, Trash2, Check, X, ChevronRight, ChevronUp, ChevronDown, ListChecks, PencilLine, Play, Building2, Layers, Sparkles, Loader2 } from "lucide-react";
+import { Gauge, Plus, Trash2, Check, X, ChevronRight, ChevronUp, ChevronDown, ListChecks, PencilLine, Play, Building2, Layers, Sparkles, Loader2, Pause } from "lucide-react";
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
 import { generateAssessment } from "../api.js";
 
@@ -562,7 +562,7 @@ function RodarAssessment({ base, diag, saveDiag }) {
           <span className="text-sm font-medium text-slate-800">{sessao.cliente_nome} <span className="text-xs text-slate-400 font-mono ml-1">{segNome(sessao.segmento_id)}</span></span>
           <div className="flex items-center gap-3">
             {novasDisponiveis > 0 && <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={incluirNovas}><Plus className="w-3 h-3" /> incluir {novasDisponiveis} nova{novasDisponiveis > 1 ? "s" : ""}</button>}
-            <button className="text-xs text-slate-400 hover:text-slate-700" onClick={() => setActiveId(null)} title="Sai e mantém salvo para continuar depois">pausar</button>
+            <button className={btnGhost} onClick={() => setActiveId(null)} title="Sai e mantém salvo para continuar depois"><Pause className="w-4 h-4" /> Pausar</button>
             <button className="text-xs text-slate-400 hover:text-red-600" onClick={() => descartar(sessao)}>descartar</button>
           </div>
         </div>

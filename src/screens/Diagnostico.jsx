@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageSquare, ChevronRight, Send, ArrowLeft, X, FileText, Layers, Grid3x3, Box, ListChecks, Play, Plus } from "lucide-react";
+import { MessageSquare, ChevronRight, Send, ArrowLeft, X, FileText, Layers, Grid3x3, Box, ListChecks, Play, Plus, Pause } from "lucide-react";
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
 
 const ESCOPOS = [
@@ -21,6 +21,8 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   const [erro, setErro] = useState("");
   const [outroAberto, setOutroAberto] = useState(false);
   const [textoOutro, setTextoOutro] = useState("");
+  const [filtroArea, setFiltroArea] = useState("");
+  const [assessmentId, setAssessmentId] = useState("");
   const scrollRef = useRef(null);
 
   const areaNome = (id) => base.areas.find((a) => a.id === id)?.nome || "—";
@@ -41,10 +43,16 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
         .map((p) => ({ ...p, opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem) }))
     : [];
   const respostasSessao = sessao ? (diag.respostas || []).filter((r) => r.diagnostico_id === sessao.id) : [];
-  const idx = respostasSessao.length;
-  const pergunta = perguntasSel[idx];
+  const idx = respostasSessao.length; // respondidas (progresso)
+  const answeredIds = new Set(respostasSessao.map((r) => r.pergunta_id));
+  const areaDaPergunta = (p) => base.funcionalidades.find((f) => f.id === p.funcionalidade_id)?.area_id;
+  const pendentes = perguntasSel.filter((p) => !answeredIds.has(p.id));
+  const areasPresentes = [...new Set(perguntasSel.map((p) => areaDaPergunta(p)).filter(Boolean))];
+  const pendentesFiltradas = filtroArea ? pendentes.filter((p) => areaDaPergunta(p) === filtroArea) : pendentes;
+  const pergunta = pendentesFiltradas[0];
 
-  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [idx, activeId, outroAberto]);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [idx, activeId, outroAberto, filtroArea]);
+  useEffect(() => { setFiltroArea(""); }, [activeId]);
 
   const resolverFuncIds = () => {
     if (escopo === "segmento") {
@@ -78,9 +86,10 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
       id: uid(), cliente_nome: cliente.trim(), criado_em: nowISO(), status: "em_andamento",
       escopo, escopo_label: rotuloEscopo(), func_ids, perguntaIds,
       area_id: escopo === "area" ? areaSelId : undefined,
+      assessment_id: assessmentId || undefined,
     };
     saveDiag({ ...diag, diagnosticos: [...diagnosticos, rec] });
-    setActiveId(rec.id); setOutroAberto(false); setTextoOutro(""); setCliente("");
+    setActiveId(rec.id); setOutroAberto(false); setTextoOutro(""); setCliente(""); setAssessmentId("");
   };
 
   const toggleCustom = (fid) => setCustomIds((c) => c.includes(fid) ? c.filter((x) => x !== fid) : [...c, fid]);
@@ -128,6 +137,22 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
         <SectionTitle sub="Escolha o cliente e o escopo. Carrega só o que está aprovado.">Bot de diagnóstico</SectionTitle>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
           {erro && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{erro}</div>}
+          {(diag.assessments || []).length > 0 && (
+            <div>
+              <Label>Puxar cliente de um assessment (opcional)</Label>
+              <select className={inputCls} value={assessmentId} onChange={(e) => {
+                const a = (diag.assessments || []).find((x) => x.id === e.target.value);
+                setAssessmentId(e.target.value);
+                if (a) setCliente(a.cliente_nome);
+              }}>
+                <option value="">— novo cliente —</option>
+                {[...(diag.assessments || [])].reverse().map((a) => (
+                  <option key={a.id} value={a.id}>{a.cliente_nome} · {segNome(a.segmento_id)} · {fmtDate(a.criado_em)}</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-400 mt-1">A empresa que você avaliou no Assessment inicial aparece aqui. Ao escolher, o cliente é preenchido; depois defina as áreas do diagnóstico.</p>
+            </div>
+          )}
           <div><Label>Cliente</Label><input className={inputCls} placeholder="Nome da empresa" value={cliente} onChange={(e) => setCliente(e.target.value)} /></div>
 
           <div>
@@ -266,10 +291,23 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
         </div>
         <div className="flex items-center gap-3">
           {novasDisponiveis > 0 && <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={incluirNovas}><Plus className="w-3 h-3" /> incluir {novasDisponiveis} nova{novasDisponiveis > 1 ? "s" : ""}</button>}
-          <button className="text-xs text-slate-400 hover:text-slate-700" onClick={() => setActiveId(null)} title="Sai e mantém salvo para continuar depois">pausar</button>
+          <button className={btnGhost} onClick={() => setActiveId(null)} title="Sai e mantém salvo para continuar depois"><Pause className="w-4 h-4" /> Pausar</button>
           <button className="text-xs text-slate-400 hover:text-red-600 inline-flex items-center gap-1" onClick={() => descartar(sessao)}><X className="w-3 h-3" /> descartar</button>
         </div>
       </div>
+
+      {areasPresentes.length > 1 && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-slate-400">Responder por área:</span>
+          <select className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" value={filtroArea} onChange={(e) => setFiltroArea(e.target.value)}>
+            <option value="">Todas as áreas</option>
+            {areasPresentes.map((aid) => {
+              const pend = pendentes.filter((p) => areaDaPergunta(p) === aid).length;
+              return <option key={aid} value={aid}>{areaNome(aid)}{pend ? ` (${pend} pendente${pend > 1 ? "s" : ""})` : " (ok)"}</option>;
+            })}
+          </select>
+        </div>
+      )}
 
       <div className="h-1.5 w-full rounded-full bg-slate-200 mb-4 overflow-hidden">
         <div className="h-full bg-teal-600 transition-all" style={{ width: `${(idx / perguntasSel.length) * 100}%` }} />
@@ -283,9 +321,9 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
           </div>
         ))}
 
-        {!concluiu && (
+        {pergunta ? (
           <div className="space-y-3 pt-1">
-            <div className="text-sm text-slate-800 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs font-medium">{pergunta.texto}</div>
+            <div className="text-sm text-slate-800 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs font-medium">{pergunta.texto}<span className="block text-xs font-normal text-slate-400 mt-0.5">{areaNome(areaDaPergunta(pergunta))}</span></div>
             {!outroAberto ? (
               <div className="grid gap-2">
                 {pergunta.opcoes.map((o) => (
@@ -306,7 +344,11 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
               </div>
             )}
           </div>
-        )}
+        ) : !concluiu ? (
+          <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-slate-600">
+            Área <b>{areaNome(filtroArea)}</b> concluída. Escolha outra área acima (ou “Todas”) para continuar, ou pause e retome depois com o responsável.
+          </div>
+        ) : null}
       </div>
       <p className="text-center text-xs text-slate-400 mt-2 font-mono">{Math.min(idx, perguntasSel.length)} / {perguntasSel.length}</p>
     </div>
