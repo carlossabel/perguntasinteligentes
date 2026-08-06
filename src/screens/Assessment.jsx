@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Gauge, Plus, Trash2, Check, X, ChevronRight, ListChecks, PencilLine, Play, Building2 } from "lucide-react";
+import { Gauge, Plus, Trash2, Check, X, ChevronRight, ListChecks, PencilLine, Play, Building2, Layers } from "lucide-react";
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
 
 const NIVEIS = [
