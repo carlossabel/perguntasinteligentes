@@ -2,20 +2,21 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const nowISO = () => new Date().toISOString();
 
 /**
- * Base inicial. Hierarquia: segmento → área → funcionalidade → pergunta → opção.
+ * Base inicial (exemplo). Hierarquia: segmento → área → funcionalidade → pergunta → opção.
+ * Só aparece numa base nova (volume vazio). É conteúdo de exemplo, para você substituir.
  */
 export function seedBase() {
-  const sMANUF = uid(), sCOM = uid();
+  const sTEX = uid(), sMET = uid();
   const segmentos = [
-    { id: sMANUF, nome: "Manufatura" },
-    { id: sCOM, nome: "Comercial & Fiscal" },
+    { id: sTEX, nome: "Têxtil" },
+    { id: sMET, nome: "Metal mecânico" },
   ];
 
-  const aPCP = uid(), aCOMP = uid(), aFAT = uid();
+  const aTexPCP = uid(), aTexFat = uid(), aMetProd = uid();
   const areas = [
-    { id: aPCP, nome: "PCP", segmento_id: sMANUF },
-    { id: aCOMP, nome: "Compras", segmento_id: sMANUF },
-    { id: aFAT, nome: "Faturamento", segmento_id: sCOM },
+    { id: aTexPCP, nome: "PCP", segmento_id: sTEX },
+    { id: aTexFat, nome: "Faturamento", segmento_id: sTEX },
+    { id: aMetProd, nome: "Produção", segmento_id: sMET },
   ];
 
   const funcionalidades = [];
@@ -32,10 +33,10 @@ export function seedBase() {
     });
   };
 
-  addFunc(aPCP, "apontamento-fabrica", "Apontamento de produção", {
+  addFunc(aTexPCP, "apontamento-fabrica", "Apontamento de produção", {
     objetivo: "Registrar em tempo real o que foi produzido no chão de fábrica, por ordem e operação.",
     fluxo: "1) Operador seleciona a ordem. 2) Informa quantidade boa e refugo. 3) Registra início/fim. 4) Sistema baixa insumos e atualiza o estoque.",
-    beneficio: "Visibilidade imediata da produção e cálculo automático de eficiência (OEE).",
+    beneficio: "Visibilidade imediata da produção e cálculo automático de eficiência.",
     risco: "Sem apontamento estruturado, o custo real fica desconhecido e o planejamento vira chute.",
     limitacoes: "Integração com coletores/IoT de terceiros exige conector específico.",
     cadastrar: "Centros de trabalho, operações, roteiros e motivos de refugo.",
@@ -51,7 +52,26 @@ export function seedBase() {
     ],
   }]);
 
-  addFunc(aPCP, "ordem-producao", "Ordem de produção", {
+  addFunc(aTexFat, "emissao-nf", "Emissão de nota fiscal", {
+    objetivo: "Emitir NF-e integrada ao faturamento e à apuração fiscal.",
+    fluxo: "1) Fecha o pedido. 2) Calcula impostos por regra fiscal. 3) Transmite à SEFAZ. 4) Envia DANFE ao cliente.",
+    beneficio: "Menos erro fiscal e conciliação automática entre venda e faturamento.",
+    risco: "Emissão manual gera erro tributário, retrabalho e risco de autuação.",
+    limitacoes: "Cenários fiscais específicos (ST, regimes especiais) podem exigir parametrização sob medida.",
+    cadastrar: "Regras fiscais por UF, CFOP, natureza de operação e certificado digital.",
+  }, [{
+    texto: "Como as notas fiscais são emitidas hoje?",
+    opcoes: [
+      { texto: "ERP integrado direto à SEFAZ", veredito: "ok" },
+      { texto: "Sistema separado do faturamento", veredito: "atende" },
+      { texto: "Contabilidade externa emite para nós", veredito: "atende" },
+      { texto: "Regras fiscais específicas do setor", veredito: "custom" },
+      { texto: "Processo manual sujeito a erro", veredito: "gap" },
+      { texto: "Outro", veredito: "rever" },
+    ],
+  }]);
+
+  addFunc(aMetProd, "ordem-producao", "Ordem de produção", {
     objetivo: "Transformar a demanda em ordens de produção rastreáveis com materiais e etapas.",
     fluxo: "1) Demanda entra (pedido/previsão). 2) Explosão de materiais. 3) Geração da ordem. 4) Liberação para o chão.",
     beneficio: "Rastreabilidade completa do que produzir, quando e com quais insumos.",
@@ -66,25 +86,6 @@ export function seedBase() {
       { texto: "Por planilha ou e-mail", veredito: "atende" },
       { texto: "Regras complexas de explosão de materiais", veredito: "custom" },
       { texto: "Não existe ordem formal", veredito: "gap" },
-      { texto: "Outro", veredito: "rever" },
-    ],
-  }]);
-
-  addFunc(aFAT, "emissao-nf", "Emissão de nota fiscal", {
-    objetivo: "Emitir NF-e integrada ao faturamento e à apuração fiscal.",
-    fluxo: "1) Fecha o pedido. 2) Calcula impostos por regra fiscal. 3) Transmite à SEFAZ. 4) Envia DANFE ao cliente.",
-    beneficio: "Menos erro fiscal e conciliação automática entre venda e faturamento.",
-    risco: "Emissão manual gera erro tributário, retrabalho e risco de autuação.",
-    limitacoes: "Cenários fiscais muito específicos (ST, regimes especiais) podem exigir parametrização sob medida.",
-    cadastrar: "Regras fiscais por UF, CFOP, natureza de operação e certificado digital.",
-  }, [{
-    texto: "Como as notas fiscais são emitidas hoje?",
-    opcoes: [
-      { texto: "ERP integrado direto à SEFAZ", veredito: "ok" },
-      { texto: "Sistema separado do faturamento", veredito: "atende" },
-      { texto: "Contabilidade externa emite para nós", veredito: "atende" },
-      { texto: "Regras fiscais específicas do setor", veredito: "custom" },
-      { texto: "Processo manual sujeito a erro", veredito: "gap" },
       { texto: "Outro", veredito: "rever" },
     ],
   }]);

@@ -34,10 +34,6 @@ export default function Assessment({ base, saveBase, diag, saveDiag }) {
     saveBase({ ...base, segmentos: [...segmentos, { id, nome }] });
     setSegId(id); setNovoSeg("");
   };
-  const renomearSegmento = (nome) => {
-    if (!segId) return;
-    saveBase({ ...base, segmentos: segmentos.map((s) => s.id === segId ? { ...s, nome } : s) });
-  };
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -64,9 +60,6 @@ export default function Assessment({ base, saveBase, diag, saveDiag }) {
                   {segmentos.length === 0 && <option value="">— nenhum ainda —</option>}
                   {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
                 </select>
-                {segAtual && (
-                  <input className={inputCls + " mt-2"} value={segAtual.nome} onChange={(e) => renomearSegmento(e.target.value)} placeholder="renomear o segmento" />
-                )}
               </div>
               <div>
                 <Label>Criar novo segmento</Label>
