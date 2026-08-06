@@ -2,6 +2,22 @@ import { useState, useMemo } from "react";
 import { FileText, Copy, Check } from "lucide-react";
 import { VEREDITOS, VEREDITO_ORDER, fmtDate, btnGhost, VeredictoChip, Field, Label, Empty, SectionTitle } from "../ui.jsx";
 
+// Ordem de leitura comercial: começa pelo que atendemos (confiança), termina no gap (honestidade).
+const ORDEM_VENDA = ["atende", "ok", "parceira", "parcial", "custom", "gap"];
+
+// Lado "Como podemos atender" — tom consultivo por veredito.
+function comoAtendemos(it) {
+  switch (it.veredito) {
+    case "atende": return it.f?.como_atende?.trim() || "Atendemos esse processo de forma nativa, sem esforço adicional.";
+    case "ok": return "Já bem resolvido no cliente — sem esforço de implantação da nossa parte.";
+    case "parceira": return "Atendemos por meio de parceiro/integração homologada.";
+    case "parcial": return "Atendemos parcialmente; resta um ajuste a dimensionar no projeto.";
+    case "custom": return "Atendemos via customização — escopo a dimensionar em conjunto.";
+    case "gap": return "Hoje não cobrimos isso nativamente; ponto a avaliar como evolução/roadmap.";
+    default: return "";
+  }
+}
+
 export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
   const [copied, setCopied] = useState(false);
   const diags = [...diag.diagnosticos].filter((x) => x.status !== "em_andamento").reverse();
@@ -46,17 +62,29 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
 
   if (!d) return <div className="max-w-3xl mx-auto"><Empty icon={FileText} title="Nenhum diagnóstico ainda" hint="Rode um diagnóstico no bot para gerar o relatório." /></div>;
 
+  const linhas = dados ? dados.itens.filter((it) => it.veredito !== "rever").slice().sort((a, b) => ORDEM_VENDA.indexOf(a.veredito) - ORDEM_VENDA.indexOf(b.veredito)) : [];
+  const sintese = (() => {
+    if (!dados) return "";
+    const c = dados.contagem;
+    const avaliados = c.atende + c.ok + c.parceira + c.parcial + c.custom + c.gap;
+    if (!avaliados) return "Nenhum processo avaliado ainda.";
+    const diretos = c.atende + c.ok, ressalva = c.parceira + c.parcial + c.custom;
+    let s = `De ${avaliados} processo${avaliados > 1 ? "s" : ""} avaliado${avaliados > 1 ? "s" : ""}, atendemos ${diretos} diretamente`;
+    if (ressalva) s += `, ${ressalva} com ressalva (parceiro, parcial ou customização)`;
+    if (c.gap) s += ` e ${c.gap} é${c.gap > 1 ? "(são)" : ""} lacuna${c.gap > 1 ? "s" : ""}`;
+    s += ".";
+    if (risco) s += ` Risco de implantação: ${risco.faixa}.`;
+    return s;
+  })();
+
   const copiar = () => {
     let t = `RELATÓRIO DE ADERÊNCIA\nCliente: ${d.cliente_nome}\nEscopo: ${escopoLabel(d)}\nData: ${fmtDate(d.criado_em)}\n\n`;
-    t += `Resumo: atende ${dados.contagem.atende} · parceira ${dados.contagem.parceira} · parcial ${dados.contagem.parcial} · customização ${dados.contagem.custom} · não atende ${dados.contagem.gap} · já ok ${dados.contagem.ok}\n`;
-    if (risco) t += `Risco de implantação: ${risco.faixa} (${risco.pct}%${risco.partes.length ? " · " + risco.partes.join(" + ") : ""})\n`;
-    VEREDITO_ORDER.forEach((v) => {
-      if (!dados.grupos[v].length) return;
-      t += `\n== ${VEREDITOS[v].label.toUpperCase()} ==\n`;
-      dados.grupos[v].forEach((it) => {
-        t += `\n• ${it.f?.nome} [${VEREDITOS[v].short}]\n  Hoje: ${it.p?.texto} → ${it.o?.texto}\n`;
-        if (v === "atende" && it.f?.como_atende) t += `  Como atende: ${it.f.como_atende}\n`;
-      });
+    t += sintese + "\n";
+    t += `\nResumo: atende ${dados.contagem.atende} · parceira ${dados.contagem.parceira} · parcial ${dados.contagem.parcial} · customização ${dados.contagem.custom} · não atende ${dados.contagem.gap} · já ok ${dados.contagem.ok}\n`;
+    t += `\n— COMO É HOJE  →  COMO PODEMOS ATENDER —\n`;
+    linhas.forEach((it) => {
+      const hoje = it.r?.texto_outro ? `Outro: ${it.r.texto_outro}` : it.o?.texto;
+      t += `\n• ${it.f?.nome} [${VEREDITOS[it.veredito].short}]\n  Hoje: ${it.p?.texto} → ${hoje}\n  Atendemos: ${comoAtendemos(it)}\n`;
     });
     if (dados.outros.length) { t += `\n== VOLTA PARA CURADORIA (Outros) ==\n`; dados.outros.forEach((it) => (t += `• ${it.f?.nome}: ${it.r.texto_outro}\n`)); }
     navigator.clipboard?.writeText(t).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
@@ -88,6 +116,8 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
         </div>
       )}
 
+      {sintese && <p className="text-sm text-slate-600 mb-5 leading-relaxed">{sintese}</p>}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
         {["gap", "parcial", "custom", "parceira", "atende", "ok"].map((v) => (
           <div key={v} className={`rounded-xl border p-4 ${VEREDITOS[v].chip}`}>
@@ -97,32 +127,29 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
         ))}
       </div>
 
-      <div className="space-y-6">
-        {VEREDITO_ORDER.map((v) => dados.grupos[v].length > 0 && (
-          <div key={v}>
-            <div className="flex items-center gap-2 mb-3">
-              <VeredictoChip v={v} size="lg" />
-              <span className="text-sm text-slate-400">{VEREDITOS[v].desc}</span>
+      <div className="space-y-3">
+        {linhas.map((it, i) => (
+          <div key={i} className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100">
+              <VeredictoChip v={it.veredito} />
+              <span className="font-semibold text-slate-900">{it.f?.nome}</span>
             </div>
-            <div className="space-y-3">
-              {dados.grupos[v].map((it, i) => (
-                <div key={i} className="rounded-2xl border border-slate-200 bg-white p-5">
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <h4 className="font-semibold text-slate-900">{it.f?.nome}</h4>
-                    <VeredictoChip v={v} />
-                  </div>
-                  <p className="text-sm text-slate-500 mb-3"><span className="font-mono text-xs uppercase tracking-wider text-slate-400">Hoje</span> · {it.p?.texto} → <span className="text-slate-700 font-medium">{it.o?.texto}</span></p>
-                  {v === "atende" && it.f?.como_atende && (
-                    <div className="text-sm"><Field l="Como atende">{it.f.como_atende}</Field></div>
-                  )}
-                </div>
-              ))}
+            <div className="grid sm:grid-cols-2">
+              <div className="p-4 bg-slate-50/60 sm:border-r border-slate-100">
+                <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-1">Como é hoje</div>
+                <div className="text-sm text-slate-500">{it.p?.texto}</div>
+                <div className="text-sm text-slate-800 font-medium mt-1">{it.r?.texto_outro ? `Outro: ${it.r.texto_outro}` : it.o?.texto}</div>
+              </div>
+              <div className="p-4">
+                <div className="font-mono text-[11px] uppercase tracking-widest text-teal-600 mb-1">Como podemos atender</div>
+                <div className="text-sm text-slate-700">{comoAtendemos(it)}</div>
+              </div>
             </div>
           </div>
         ))}
 
         {dados.outros.length > 0 && (
-          <div>
+          <div className="pt-3">
             <div className="flex items-center gap-2 mb-3"><VeredictoChip v="rever" size="lg" /><span className="text-sm text-slate-400">respostas em texto livre → voltam para a curadoria</span></div>
             <div className="rounded-2xl border border-teal-200 bg-teal-50 p-5 space-y-2">
               {dados.outros.map((it, i) => (
