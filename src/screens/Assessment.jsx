@@ -22,6 +22,23 @@ export function calcularResultado(niveis) {
 
 export default function Assessment({ base, saveBase, diag, saveDiag }) {
   const [modo, setModo] = useState("configurar");
+  const segmentos = base.segmentos || [];
+  const [segId, setSegId] = useState(segmentos[0]?.id || "");
+  const [novoSeg, setNovoSeg] = useState("");
+  const segAtual = segmentos.find((s) => s.id === segId);
+
+  const criarSegmento = () => {
+    const nome = novoSeg.trim();
+    if (!nome) return;
+    const id = uid();
+    saveBase({ ...base, segmentos: [...segmentos, { id, nome }] });
+    setSegId(id); setNovoSeg("");
+  };
+  const renomearSegmento = (nome) => {
+    if (!segId) return;
+    saveBase({ ...base, segmentos: segmentos.map((s) => s.id === segId ? { ...s, nome } : s) });
+  };
+
   return (
     <div className="max-w-3xl mx-auto">
       <SectionTitle sub="Estágio 1 · macro. O comercial roda para ler a maturidade da empresa e levantar as oportunidades (funcionalidades) do negócio.">
@@ -37,13 +54,38 @@ export default function Assessment({ base, saveBase, diag, saveDiag }) {
       </div>
       {modo === "configurar" && (
         <div className="space-y-8">
-          <div>
-            <h3 className="text-sm font-semibold text-teal-900 mb-3 flex items-center gap-2"><Building2 className="w-4 h-4" /> Dados da empresa (campos que você vai preencher ao rodar)</h3>
-            <CamposEmpresa base={base} saveBase={saveBase} />
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-teal-900 flex items-center gap-2"><Layers className="w-4 h-4" /> Segmento</h3>
+            <p className="text-xs text-slate-400 -mt-2">O segmento define as perguntas deste assessment e agrupa suas funcionalidades. Os campos da empresa são globais (valem para todos).</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <Label>Segmento em edição</Label>
+                <select className={inputCls} value={segId} onChange={(e) => setSegId(e.target.value)}>
+                  {segmentos.length === 0 && <option value="">— nenhum ainda —</option>}
+                  {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                </select>
+                {segAtual && (
+                  <input className={inputCls + " mt-2"} value={segAtual.nome} onChange={(e) => renomearSegmento(e.target.value)} placeholder="renomear o segmento" />
+                )}
+              </div>
+              <div>
+                <Label>Criar novo segmento</Label>
+                <div className="flex gap-2">
+                  <input className={inputCls} placeholder="ex.: Logística" value={novoSeg} onChange={(e) => setNovoSeg(e.target.value)} onKeyDown={(e) => e.key === "Enter" && criarSegmento()} />
+                  <button className={btnTeal + " whitespace-nowrap"} onClick={criarSegmento} disabled={!novoSeg.trim()}><Plus className="w-4 h-4" /> Criar</button>
+                </div>
+              </div>
+            </div>
           </div>
+
           <div className="border-t border-slate-200 pt-8">
-            <h3 className="text-sm font-semibold text-teal-900 mb-3 flex items-center gap-2"><PencilLine className="w-4 h-4" /> Perguntas do assessment</h3>
-            <CadastroPerguntas base={base} saveBase={saveBase} />
+            <h3 className="text-sm font-semibold text-teal-900 mb-3 flex items-center gap-2"><PencilLine className="w-4 h-4" /> Perguntas do assessment {segAtual && <span className="text-slate-400 font-normal">· {segAtual.nome}</span>}</h3>
+            {segAtual ? <CadastroPerguntas base={base} saveBase={saveBase} segId={segId} /> : <p className="text-sm text-slate-400">Crie um segmento acima para cadastrar perguntas.</p>}
+          </div>
+
+          <div className="border-t border-slate-200 pt-8">
+            <h3 className="text-sm font-semibold text-teal-900 mb-3 flex items-center gap-2"><Building2 className="w-4 h-4" /> Dados da empresa <span className="text-slate-400 font-normal">· globais (preenchidos ao rodar)</span></h3>
+            <CamposEmpresa base={base} saveBase={saveBase} />
           </div>
         </div>
       )}
@@ -136,9 +178,7 @@ function CamposEmpresa({ base, saveBase }) {
 }
 
 /* ---------------- Cadastro de perguntas macro ---------------- */
-function CadastroPerguntas({ base, saveBase }) {
-  const segmentos = base.segmentos || [];
-  const [segId, setSegId] = useState(segmentos[0]?.id || "");
+function CadastroPerguntas({ base, saveBase, segId }) {
   const [texto, setTexto] = useState("");
   const [opcoes, setOpcoes] = useState([{ texto: "", nivel: 4, oportunidades: [] }, { texto: "", nivel: 0, oportunidades: [] }]);
   const [erro, setErro] = useState("");
@@ -176,12 +216,6 @@ function CadastroPerguntas({ base, saveBase }) {
 
   return (
     <div className="space-y-5">
-      <div><Label>Segmento do questionário</Label>
-        <select className={inputCls} value={segId} onChange={(e) => setSegId(e.target.value)}>
-          {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-        </select>
-      </div>
-
       {perguntas.length > 0 && (
         <div className="space-y-2">
           <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400">Perguntas do segmento ({perguntas.length})</h3>
