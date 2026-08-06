@@ -11,7 +11,7 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
 
   const dados = useMemo(() => {
     if (!d) return null;
-    const rs = diag.respostas.filter((r) => r.diagnostico_id === d.id);
+    const rs = diag.respostas.filter((r) => r.diagnostico_id === d.id && r.tipo !== "inicial");
     const itens = rs.map((r) => {
       const o = base.opcoes.find((x) => x.id === r.opcao_id);
       const p = base.perguntas.find((x) => x.id === r.pergunta_id);

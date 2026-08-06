@@ -1,103 +1,118 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageSquare, ChevronRight, Send, ArrowLeft, X, FileText, Layers, Grid3x3, Box, ListChecks, Play, Plus, Pause } from "lucide-react";
+import { MessageSquare, ChevronRight, Send, ArrowLeft, X, FileText, Play, Plus, Pause } from "lucide-react";
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
-import { RodarAssessment } from "./Assessment.jsx";
 
-const ESCOPOS = [
-  { id: "segmento", label: "Segmento", icon: Layers, hint: "todas as perguntas do segmento" },
-  { id: "area", label: "Área", icon: Grid3x3, hint: "todas as perguntas de uma área" },
-  { id: "funcionalidade", label: "Funcionalidade", icon: Box, hint: "uma funcionalidade" },
-  { id: "custom", label: "Customizado", icon: ListChecks, hint: "você escolhe as funcionalidades" },
-];
+const camposOrdenados = (base) => [...(base.camposEmpresa || [])].sort((a, b) => a.ordem - b.ordem);
+
+function CampoInput({ campo, valor, onChange }) {
+  if (campo.tipo === "selecao") {
+    return (
+      <select className={inputCls} value={valor || ""} onChange={(e) => onChange(e.target.value)}>
+        <option value="">—</option>
+        {(campo.opcoes || []).map((op) => <option key={op} value={op}>{op}</option>)}
+      </select>
+    );
+  }
+  return <input className={inputCls} type={campo.tipo === "numero" ? "number" : "text"} value={valor || ""} onChange={(e) => onChange(e.target.value)} placeholder={campo.label} />;
+}
 
 export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   const segmentos = base.segmentos || [];
+  const empresas = diag.empresas || [];
   const [activeId, setActiveId] = useState(null);
-  const [modoDiag, setModoDiag] = useState("tecnico");
-  const [cliente, setCliente] = useState("");
-  const [escopo, setEscopo] = useState("segmento");
+  const [empresaId, setEmpresaId] = useState(empresas[0]?.id || "__nova");
+  const [novaEmpresa, setNovaEmpresa] = useState("");
   const [segId, setSegId] = useState(segmentos[0]?.id || "");
-  const [areaSelId, setAreaSelId] = useState(base.areas[0]?.id || "");
-  const [funcId, setFuncId] = useState(base.funcionalidades[0]?.id || "");
-  const [customIds, setCustomIds] = useState([]);
-  const [erro, setErro] = useState("");
+  const [dados, setDados] = useState(empresas[0]?.dados ? { ...empresas[0].dados } : {});
+  const [filtroArea, setFiltroArea] = useState("");
   const [outroAberto, setOutroAberto] = useState(false);
   const [textoOutro, setTextoOutro] = useState("");
-  const [filtroArea, setFiltroArea] = useState("");
-  const [assessmentId, setAssessmentId] = useState("");
+  const [erro, setErro] = useState("");
   const scrollRef = useRef(null);
 
-  const areaNome = (id) => base.areas.find((a) => a.id === id)?.nome || "—";
   const segNome = (id) => segmentos.find((s) => s.id === id)?.nome || "—";
-  const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
-  const perguntaById = (id) => base.perguntas.find((p) => p.id === id);
-  const opById = (id) => base.opcoes.find((o) => o.id === id);
-  const escopoLabelDe = (d) => d.escopo_label || (d.area_id ? "Área · " + areaNome(d.area_id) : "—");
+  const areaNome = (id) => base.areas.find((a) => a.id === id)?.nome || "—";
 
   const diagnosticos = diag.diagnosticos || [];
   const emAndamento = diagnosticos.filter((d) => d.status === "em_andamento");
   const concluidos = diagnosticos.filter((d) => d.status !== "em_andamento");
   const sessao = activeId ? diagnosticos.find((d) => d.id === activeId && d.status === "em_andamento") : null;
 
-  // Perguntas da sessão: snapshot congelado (perguntaIds), na ordem salva.
-  const perguntasSel = sessao
-    ? (sessao.perguntaIds || []).map((pid) => perguntaById(pid)).filter(Boolean)
-        .map((p) => ({ ...p, opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem) }))
-    : [];
+  // Resolvedores por tipo de item (inicial = macro/assessment; tecnica = funcionalidade).
+  const perguntaDe = (it) => it.tipo === "inicial"
+    ? (base.assessmentPerguntas || []).find((p) => p.id === it.pergunta_id)
+    : base.perguntas.find((p) => p.id === it.pergunta_id);
+  const opcoesDe = (it) => it.tipo === "inicial"
+    ? (base.assessmentOpcoes || []).filter((o) => o.pergunta_id === it.pergunta_id).sort((a, b) => a.ordem - b.ordem)
+    : base.opcoes.filter((o) => o.pergunta_id === it.pergunta_id).sort((a, b) => a.ordem - b.ordem);
+  const opById = (id, tipo) => tipo === "inicial" ? (base.assessmentOpcoes || []).find((o) => o.id === id) : base.opcoes.find((o) => o.id === id);
+  const areaDe = (it) => {
+    if (it.tipo !== "tecnica") return null;
+    const p = perguntaDe(it);
+    return base.funcionalidades.find((f) => f.id === p?.funcionalidade_id)?.area_id || null;
+  };
+
+  const itens = sessao ? (sessao.itens || []).filter((it) => perguntaDe(it)) : [];
   const respostasSessao = sessao ? (diag.respostas || []).filter((r) => r.diagnostico_id === sessao.id) : [];
-  const idx = respostasSessao.length; // respondidas (progresso)
   const answeredIds = new Set(respostasSessao.map((r) => r.pergunta_id));
-  const areaDaPergunta = (p) => base.funcionalidades.find((f) => f.id === p.funcionalidade_id)?.area_id;
-  const pendentes = perguntasSel.filter((p) => !answeredIds.has(p.id));
-  const areasPresentes = [...new Set(perguntasSel.map((p) => areaDaPergunta(p)).filter(Boolean))];
-  const pendentesFiltradas = filtroArea ? pendentes.filter((p) => areaDaPergunta(p) === filtroArea) : pendentes;
-  const pergunta = pendentesFiltradas[0];
+  const idx = respostasSessao.length;
+
+  const pendentes = itens.filter((it) => !answeredIds.has(it.pergunta_id));
+  const pendIniciais = pendentes.filter((it) => it.tipo === "inicial");
+  const areasPresentes = [...new Set(itens.filter((it) => it.tipo === "tecnica").map(areaDe).filter(Boolean))];
+  let atualItem;
+  if (pendIniciais.length) atualItem = pendIniciais[0];
+  else {
+    const pt = pendentes.filter((it) => it.tipo === "tecnica");
+    atualItem = (filtroArea ? pt.filter((it) => areaDe(it) === filtroArea) : pt)[0];
+  }
+  const pergunta = atualItem ? { ...perguntaDe(atualItem), opcoes: opcoesDe(atualItem) } : null;
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [idx, activeId, outroAberto, filtroArea]);
   useEffect(() => { setFiltroArea(""); }, [activeId]);
 
-  const resolverFuncIds = () => {
-    if (escopo === "segmento") {
-      return base.funcionalidades.filter((f) => (f.segmento_ids || []).includes(segId)).map((f) => f.id);
-    }
-    if (escopo === "area") return base.funcionalidades.filter((f) => f.area_id === areaSelId).map((f) => f.id);
-    if (escopo === "funcionalidade") return funcId ? [funcId] : [];
-    return customIds;
+  const selecionarEmpresa = (id) => {
+    setEmpresaId(id);
+    if (id === "__nova") setDados({});
+    else { const e = empresas.find((x) => x.id === id); setDados(e?.dados ? { ...e.dados } : {}); }
   };
-  const rotuloEscopo = () => {
-    if (escopo === "segmento") return "Segmento · " + segNome(segId);
-    if (escopo === "area") return "Área · " + areaNome(areaSelId);
-    if (escopo === "funcionalidade") return "Funcionalidade · " + funcNome(funcId);
-    return `Customizado · ${customIds.length} funcionalidade${customIds.length === 1 ? "" : "s"}`;
-  };
-  const perguntasAprovadas = (funcIds) => base.perguntas.filter((p) => funcIds.includes(p.funcionalidade_id) && p.status === "aprovada").map((p) => p.id);
-  const selecaoValida = () => {
-    if (escopo === "segmento") return !!segId;
-    if (escopo === "area") return !!areaSelId;
-    if (escopo === "funcionalidade") return !!funcId;
-    return customIds.length > 0;
+
+  const montarItens = (sid) => {
+    const iniciais = (base.assessmentPerguntas || []).filter((p) => p.segmento_id === sid).sort((a, b) => a.ordem - b.ordem).map((p) => ({ pergunta_id: p.id, tipo: "inicial" }));
+    const funcIds = base.funcionalidades.filter((f) => (f.segmento_ids || []).includes(sid)).map((f) => f.id);
+    const tecnicas = base.perguntas.filter((p) => funcIds.includes(p.funcionalidade_id) && p.status === "aprovada").map((p) => ({ pergunta_id: p.id, tipo: "tecnica" }));
+    return { itens: [...iniciais, ...tecnicas], funcIds, nIniciais: iniciais.length, nTecnicas: tecnicas.length };
   };
 
   const iniciar = () => {
     setErro("");
-    if (!cliente.trim() || !selecaoValida()) return;
-    const func_ids = resolverFuncIds();
-    const perguntaIds = perguntasAprovadas(func_ids);
-    if (!perguntaIds.length) { setErro("Nenhuma pergunta aprovada nesse escopo. Cadastre e aprove perguntas antes."); return; }
+    if (!segId) { setErro("Escolha um segmento."); return; }
+    let listaEmpresas = empresas, empresa;
+    if (empresaId === "__nova") {
+      if (!novaEmpresa.trim()) { setErro("Dê um nome à empresa."); return; }
+      empresa = { id: uid(), nome: novaEmpresa.trim(), dados: { ...dados }, criado_em: nowISO() };
+      listaEmpresas = [...empresas, empresa];
+    } else {
+      const atual = empresas.find((e) => e.id === empresaId);
+      if (!atual) { setErro("Escolha uma empresa."); return; }
+      empresa = { ...atual, dados: { ...atual.dados, ...dados } };
+      listaEmpresas = empresas.map((e) => e.id === empresa.id ? empresa : e);
+    }
+    const faltando = camposOrdenados(base).filter((c) => c.obrigatorio && !String(dados[c.id] || "").trim());
+    if (faltando.length) { setErro("Preencha os campos obrigatórios: " + faltando.map((c) => c.label).join(", ") + "."); return; }
+    const { itens: novosItens, funcIds } = montarItens(segId);
+    if (!novosItens.length) { setErro("Esse segmento não tem perguntas iniciais nem técnicas aprovadas. Cadastre antes."); return; }
     const rec = {
-      id: uid(), cliente_nome: cliente.trim(), criado_em: nowISO(), status: "em_andamento",
-      escopo, escopo_label: rotuloEscopo(), func_ids, perguntaIds,
-      area_id: escopo === "area" ? areaSelId : undefined,
-      assessment_id: assessmentId || undefined,
+      id: uid(), empresa_id: empresa.id, cliente_nome: empresa.nome, segmento_id: segId,
+      escopo_label: "Segmento · " + segNome(segId), dados: { ...dados },
+      itens: novosItens, func_ids: funcIds, status: "em_andamento", criado_em: nowISO(),
     };
-    saveDiag({ ...diag, diagnosticos: [...diagnosticos, rec] });
-    setActiveId(rec.id); setOutroAberto(false); setTextoOutro(""); setCliente(""); setAssessmentId("");
+    saveDiag({ ...diag, empresas: listaEmpresas, diagnosticos: [...diagnosticos, rec] });
+    setActiveId(rec.id); setOutroAberto(false); setTextoOutro(""); setNovaEmpresa(""); setDados({}); setEmpresaId(empresa.id);
   };
 
-  const toggleCustom = (fid) => setCustomIds((c) => c.includes(fid) ? c.filter((x) => x !== fid) : [...c, fid]);
-
   const escolher = (opcao) => {
-    if (opcao.veredito === "rever") { setOutroAberto(true); return; }
+    if (atualItem.tipo === "tecnica" && opcao.veredito === "rever") { setOutroAberto(true); return; }
     registrar(opcao, null);
   };
   const confirmarOutro = () => {
@@ -105,121 +120,69 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
     registrar(pergunta.opcoes.find((o) => o.veredito === "rever"), textoOutro.trim());
   };
   const registrar = (opcao, outro) => {
-    const novaResp = { id: uid(), diagnostico_id: sessao.id, pergunta_id: pergunta.id, opcao_id: opcao.id, texto_outro: outro, criado_em: nowISO() };
-    const todas = [...respostasSessao, novaResp];
-    const ultima = todas.length >= perguntasSel.length;
-    let novosDiagnosticos = diagnosticos;
-    if (ultima) novosDiagnosticos = diagnosticos.map((d) => d.id === sessao.id ? { ...d, status: "concluido" } : d);
-    saveDiag({ ...diag, diagnosticos: novosDiagnosticos, respostas: [...(diag.respostas || []), novaResp] });
+    const nova = { id: uid(), diagnostico_id: sessao.id, pergunta_id: atualItem.pergunta_id, opcao_id: opcao.id, tipo: atualItem.tipo, texto_outro: outro, criado_em: nowISO() };
+    const todas = [...respostasSessao, nova];
+    const ultima = todas.length >= itens.length;
+    let novosDiag = diagnosticos;
+    if (ultima) {
+      const iniciaisResp = todas.filter((r) => r.tipo === "inicial");
+      const niveis = iniciaisResp.map((r) => opById(r.opcao_id, "inicial")?.nivel).filter((n) => Number.isFinite(n));
+      const maturidade = niveis.length ? Math.round((niveis.reduce((a, b) => a + b, 0) / (niveis.length * 4)) * 100) : null;
+      const oportunidades = [...new Set(iniciaisResp.flatMap((r) => opById(r.opcao_id, "inicial")?.oportunidades || []))];
+      novosDiag = diagnosticos.map((d) => d.id === sessao.id ? { ...d, status: "concluido", maturidade, oportunidades } : d);
+    }
+    saveDiag({ ...diag, diagnosticos: novosDiag, respostas: [...(diag.respostas || []), nova] });
     setOutroAberto(false); setTextoOutro("");
     if (ultima) { const id = sessao.id; setActiveId(null); goToReport(id); }
   };
 
   const incluirNovas = () => {
-    const novas = perguntasAprovadas(sessao.func_ids).filter((pid) => !(sessao.perguntaIds || []).includes(pid));
+    const { funcIds } = montarItens(sessao.segmento_id);
+    const existentes = new Set((sessao.itens || []).map((it) => it.pergunta_id));
+    const novas = base.perguntas.filter((p) => funcIds.includes(p.funcionalidade_id) && p.status === "aprovada" && !existentes.has(p.id)).map((p) => ({ pergunta_id: p.id, tipo: "tecnica" }));
     if (!novas.length) return;
-    const novosDiagnosticos = diagnosticos.map((d) => d.id === sessao.id ? { ...d, perguntaIds: [...d.perguntaIds, ...novas] } : d);
-    saveDiag({ ...diag, diagnosticos: novosDiagnosticos });
+    saveDiag({ ...diag, diagnosticos: diagnosticos.map((d) => d.id === sessao.id ? { ...d, itens: [...d.itens, ...novas] } : d) });
   };
 
   const descartar = (rec) => {
     if (!confirm("Descartar este diagnóstico e suas respostas?")) return;
-    saveDiag({
-      ...diag,
-      diagnosticos: diagnosticos.filter((d) => d.id !== rec.id),
-      respostas: (diag.respostas || []).filter((r) => r.diagnostico_id !== rec.id),
-    });
+    saveDiag({ ...diag, diagnosticos: diagnosticos.filter((d) => d.id !== rec.id), respostas: (diag.respostas || []).filter((r) => r.diagnostico_id !== rec.id) });
     if (activeId === rec.id) setActiveId(null);
   };
 
-  const renderTecnico = () => {
   // ---- Tela inicial ----
   if (!sessao) {
     return (
       <div className="max-w-2xl mx-auto">
-        <SectionTitle sub="Escolha o cliente e o escopo. Carrega só o que está aprovado.">Bot de diagnóstico</SectionTitle>
+        <SectionTitle sub="Escolha a empresa e o segmento. Roda as perguntas iniciais (macro) e as técnicas do segmento, em sequência.">Bot de diagnóstico</SectionTitle>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
           {erro && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{erro}</div>}
-          {(diag.assessments || []).length > 0 && (
-            <div>
-              <Label>Puxar cliente de um assessment (opcional)</Label>
-              <select className={inputCls} value={assessmentId} onChange={(e) => {
-                const a = (diag.assessments || []).find((x) => x.id === e.target.value);
-                setAssessmentId(e.target.value);
-                if (a) setCliente(a.cliente_nome);
-              }}>
-                <option value="">— novo cliente —</option>
-                {[...(diag.assessments || [])].reverse().map((a) => (
-                  <option key={a.id} value={a.id}>{a.cliente_nome} · {segNome(a.segmento_id)} · {fmtDate(a.criado_em)}</option>
-                ))}
-              </select>
-              <p className="text-xs text-slate-400 mt-1">A empresa que você avaliou no Assessment inicial aparece aqui. Ao escolher, o cliente é preenchido; depois defina as áreas do diagnóstico.</p>
-            </div>
-          )}
-          <div><Label>Cliente</Label><input className={inputCls} placeholder="Nome da empresa" value={cliente} onChange={(e) => setCliente(e.target.value)} /></div>
-
-          <div>
-            <Label>Escopo do diagnóstico</Label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {ESCOPOS.map((e) => {
-                const Icon = e.icon; const active = escopo === e.id;
-                return (
-                  <button key={e.id} onClick={() => setEscopo(e.id)} title={e.hint}
-                    className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-xs font-medium transition ${active ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-300 text-slate-500 hover:border-teal-400"}`}>
-                    <Icon className="w-4 h-4" /> {e.label}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-xs text-slate-400 mt-1.5">{ESCOPOS.find((e) => e.id === escopo)?.hint}</p>
+          <div><Label>Empresa</Label>
+            <select className={inputCls} value={empresaId} onChange={(e) => selecionarEmpresa(e.target.value)}>
+              <option value="__nova">+ Nova empresa</option>
+              {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+            </select>
+            {empresaId === "__nova"
+              ? <input className={inputCls + " mt-2"} placeholder="Nome da nova empresa" value={novaEmpresa} onChange={(e) => setNovaEmpresa(e.target.value)} />
+              : <p className="text-xs text-slate-400 mt-1">Os dados abaixo vêm desta empresa e são enriquecidos a cada diagnóstico.</p>}
           </div>
-
-          {escopo === "segmento" && (
-            <div><Label>Segmento</Label>
-              <select className={inputCls} value={segId} onChange={(e) => setSegId(e.target.value)}>
-                {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-              </select>
+          <div><Label>Segmento</Label>
+            <select className={inputCls} value={segId} onChange={(e) => setSegId(e.target.value)}>
+              {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+            </select>
+            {segId && (() => { const m = montarItens(segId); return <p className="text-xs text-slate-400 mt-1">{m.nIniciais} pergunta(s) inicial(is) + {m.nTecnicas} técnica(s) neste segmento.</p>; })()}
+          </div>
+          {camposOrdenados(base).length > 0 && (
+            <div className="grid sm:grid-cols-2 gap-4 pt-1 border-t border-slate-100">
+              {camposOrdenados(base).map((c) => (
+                <div key={c.id}>
+                  <Label>{c.label}{c.obrigatorio && <span className="text-red-500"> *</span>}</Label>
+                  <CampoInput campo={c} valor={dados[c.id]} onChange={(v) => setDados((d) => ({ ...d, [c.id]: v }))} />
+                </div>
+              ))}
             </div>
           )}
-          {escopo === "area" && (
-            <div><Label>Área</Label>
-              <select className={inputCls} value={areaSelId} onChange={(e) => setAreaSelId(e.target.value)}>
-                {base.areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-              </select>
-            </div>
-          )}
-          {escopo === "funcionalidade" && (
-            <div><Label>Funcionalidade</Label>
-              <select className={inputCls} value={funcId} onChange={(e) => setFuncId(e.target.value)}>
-                {base.funcionalidades.map((f) => <option key={f.id} value={f.id}>{f.nome} · {areaNome(f.area_id)}</option>)}
-              </select>
-            </div>
-          )}
-          {escopo === "custom" && (
-            <div>
-              <Label>Selecione as funcionalidades ({customIds.length})</Label>
-              <div className="rounded-xl border border-slate-200 max-h-64 overflow-y-auto divide-y divide-slate-100">
-                {segmentos.map((s) => {
-                  const funcsSeg = base.funcionalidades.filter((f) => (f.segmento_ids || []).includes(s.id));
-                  if (!funcsSeg.length) return null;
-                  return (
-                    <div key={s.id} className="p-2">
-                      <div className="font-mono text-xs uppercase tracking-widest text-slate-400 px-1 mb-1">{s.nome}</div>
-                      {funcsSeg.map((f) => (
-                        <label key={f.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm">
-                          <input type="checkbox" checked={customIds.includes(f.id)} onChange={() => toggleCustom(f.id)} className="accent-teal-600" />
-                          <span className="text-slate-700">{f.nome}</span>
-                          <span className="text-xs text-slate-400 ml-auto">{areaNome(f.area_id)}</span>
-                        </label>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <button className={btnTeal} onClick={iniciar} disabled={!cliente.trim() || !selecaoValida()}><MessageSquare className="w-4 h-4" /> Iniciar diagnóstico</button>
+          <button className={btnTeal} onClick={iniciar} disabled={!segId || (empresaId === "__nova" && !novaEmpresa.trim())}><MessageSquare className="w-4 h-4" /> Iniciar diagnóstico</button>
         </div>
 
         {emAndamento.length > 0 && (
@@ -227,14 +190,14 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
             <h3 className="font-mono text-xs uppercase tracking-widest text-amber-600 mb-2">Em andamento ({emAndamento.length})</h3>
             <div className="space-y-2">
               {[...emAndamento].reverse().map((d) => {
-                const total = (d.perguntaIds || []).length;
+                const total = (d.itens || []).length;
                 const feitas = (diag.respostas || []).filter((r) => r.diagnostico_id === d.id).length;
                 return (
                   <div key={d.id} className="rounded-lg border border-amber-200 bg-amber-50/40 px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="flex-1">
                         <div className="text-sm font-medium text-slate-800">{d.cliente_nome}</div>
-                        <div className="text-xs text-slate-400 font-mono">{escopoLabelDe(d)} · {feitas}/{total} respondidas · {fmtDate(d.criado_em)}</div>
+                        <div className="text-xs text-slate-400 font-mono">{d.escopo_label} · {feitas}/{total} respondidas · {fmtDate(d.criado_em)}</div>
                       </div>
                       <button className={btnTeal + " !py-1.5"} onClick={() => setActiveId(d.id)}><Play className="w-3.5 h-3.5" /> Continuar</button>
                       <button className="text-xs text-slate-400 hover:text-red-600" onClick={() => descartar(d)}>descartar</button>
@@ -255,7 +218,7 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
                 <button key={d.id} onClick={() => goToReport(d.id)} className="w-full flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-left hover:border-teal-400 transition">
                   <div className="flex-1">
                     <div className="text-sm font-medium text-slate-800">{d.cliente_nome}</div>
-                    <div className="text-xs text-slate-400 font-mono">{escopoLabelDe(d)} · {fmtDate(d.criado_em)}</div>
+                    <div className="text-xs text-slate-400 font-mono">{d.escopo_label} · {fmtDate(d.criado_em)}</div>
                   </div>
                   <FileText className="w-4 h-4 text-teal-600" />
                 </button>
@@ -267,8 +230,8 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
     );
   }
 
-  // ---- Sessão sem perguntas (snapshot vazio) ----
-  if (perguntasSel.length === 0) {
+  // ---- Sessão sem itens (snapshot vazio) ----
+  if (itens.length === 0) {
     return (
       <div className="max-w-2xl mx-auto">
         <Empty icon={MessageSquare} title="Sem perguntas nesta execução" hint="As perguntas deste diagnóstico podem ter sido removidas." />
@@ -281,9 +244,14 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   }
 
   // ---- Tela de responder ----
-  const concluiu = idx >= perguntasSel.length;
-  const answered = respostasSessao.map((r) => ({ p: perguntaById(r.pergunta_id), o: opById(r.opcao_id), outro: r.texto_outro }));
-  const novasDisponiveis = perguntasAprovadas(sessao.func_ids).filter((pid) => !(sessao.perguntaIds || []).includes(pid)).length;
+  const concluiu = idx >= itens.length;
+  const answered = respostasSessao.map((r) => ({ p: perguntaDe({ pergunta_id: r.pergunta_id, tipo: r.tipo }), o: opById(r.opcao_id, r.tipo), outro: r.texto_outro }));
+  const novasDisponiveis = (() => {
+    const { funcIds } = montarItens(sessao.segmento_id);
+    const existentes = new Set((sessao.itens || []).map((it) => it.pergunta_id));
+    return base.perguntas.filter((p) => funcIds.includes(p.funcionalidade_id) && p.status === "aprovada" && !existentes.has(p.id)).length;
+  })();
+  const faseAtual = atualItem?.tipo === "inicial" ? "Pergunta inicial (macro)" : atualItem ? areaNome(areaDe(atualItem)) : "";
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -299,13 +267,13 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
         </div>
       </div>
 
-      {areasPresentes.length > 1 && (
+      {pendIniciais.length === 0 && areasPresentes.length > 1 && (
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xs text-slate-400">Responder por área:</span>
           <select className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" value={filtroArea} onChange={(e) => setFiltroArea(e.target.value)}>
             <option value="">Todas as áreas</option>
             {areasPresentes.map((aid) => {
-              const pend = pendentes.filter((p) => areaDaPergunta(p) === aid).length;
+              const pend = pendentes.filter((it) => it.tipo === "tecnica" && areaDe(it) === aid).length;
               return <option key={aid} value={aid}>{areaNome(aid)}{pend ? ` (${pend} pendente${pend > 1 ? "s" : ""})` : " (ok)"}</option>;
             })}
           </select>
@@ -313,7 +281,7 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
       )}
 
       <div className="h-1.5 w-full rounded-full bg-slate-200 mb-4 overflow-hidden">
-        <div className="h-full bg-teal-600 transition-all" style={{ width: `${(idx / perguntasSel.length) * 100}%` }} />
+        <div className="h-full bg-teal-600 transition-all" style={{ width: `${(idx / itens.length) * 100}%` }} />
       </div>
 
       <div ref={scrollRef} className="rounded-2xl border border-slate-200 bg-white p-5 overflow-y-auto space-y-4" style={{ maxHeight: "52vh" }}>
@@ -326,7 +294,7 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
 
         {pergunta ? (
           <div className="space-y-3 pt-1">
-            <div className="text-sm text-slate-800 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs font-medium">{pergunta.texto}<span className="block text-xs font-normal text-slate-400 mt-0.5">{areaNome(areaDaPergunta(pergunta))}</span></div>
+            <div className="text-sm text-slate-800 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs font-medium">{pergunta.texto}<span className="block text-xs font-normal text-slate-400 mt-0.5">{faseAtual}</span></div>
             {!outroAberto ? (
               <div className="grid gap-2">
                 {pergunta.opcoes.map((o) => (
@@ -349,25 +317,11 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
           </div>
         ) : !concluiu ? (
           <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-slate-600">
-            Área <b>{areaNome(filtroArea)}</b> concluída. Escolha outra área acima (ou “Todas”) para continuar, ou pause e retome depois com o responsável.
+            Área <b>{areaNome(filtroArea)}</b> concluída. Escolha outra área acima (ou “Todas”), ou pause e retome depois com o responsável.
           </div>
         ) : null}
       </div>
-      <p className="text-center text-xs text-slate-400 mt-2 font-mono">{Math.min(idx, perguntasSel.length)} / {perguntasSel.length}</p>
-    </div>
-  );
-  };
-
-  const TABS_DIAG = [["iniciais", "Perguntas iniciais"], ["tecnico", "Diagnóstico técnico"]];
-  return (
-    <div className="max-w-3xl mx-auto">
-      <div className="flex gap-1 mb-5 border-b border-slate-200">
-        {TABS_DIAG.map(([id, l]) => (
-          <button key={id} onClick={() => setModoDiag(id)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition ${modoDiag === id ? "border-teal-600 text-teal-800" : "border-transparent text-slate-500 hover:text-slate-800"}`}>{l}</button>
-        ))}
-      </div>
-      {modoDiag === "iniciais" ? <RodarAssessment base={base} diag={diag} saveDiag={saveDiag} /> : renderTecnico()}
+      <p className="text-center text-xs text-slate-400 mt-2 font-mono">{Math.min(idx, itens.length)} / {itens.length}</p>
     </div>
   );
 }
