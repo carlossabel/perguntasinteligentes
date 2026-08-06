@@ -1,17 +1,17 @@
 import { useState, useEffect } from "react";
-import { Sparkles, Plus, Trash2, Check, X, Loader2, AlertTriangle } from "lucide-react";
+import { Sparkles, Plus, Trash2, Check, X, Loader2, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { VEREDITOS, uid, slug, nowISO, inputCls, btnTeal, btnGhost, Label, SectionTitle } from "../ui.jsx";
 import { generate } from "../api.js";
 
 export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const segmentos = base.segmentos || [];
   const [segmentoId, setSegmentoId] = useState(segmentos[0]?.id || "");
-  const [novoSegmento, setNovoSegmento] = useState("");
   const [areaId, setAreaId] = useState("");
   const [novaArea, setNovaArea] = useState("");
   const [nome, setNome] = useState("");
   const [codigo, setCodigo] = useState("");
   const [desc, setDesc] = useState({ objetivo: "", fluxo: "", beneficio: "", risco: "", limitacoes: "", cadastrar: "" });
+  const [showDetalhes, setShowDetalhes] = useState(false);
   const [perguntas, setPerguntas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
@@ -34,6 +34,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
     if (area?.segmento_id) setSegmentoId(area.segmento_id);
     setAreaId(f.area_id); setNome(f.nome); setCodigo(f.codigo);
     setDesc({ objetivo: f.objetivo || "", fluxo: f.fluxo || "", beneficio: f.beneficio || "", risco: f.risco || "", limitacoes: f.limitacoes || "", cadastrar: f.cadastrar || "" });
+    if (f.objetivo || f.fluxo || f.beneficio || f.risco || f.limitacoes || f.cadastrar) setShowDetalhes(true);
     const pg = base.perguntas.filter((p) => p.funcionalidade_id === f.id).map((p) => ({
       texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar",
       opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem).map((o) => ({ texto: o.texto, veredito: o.veredito })),
@@ -43,7 +44,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   }, [editing]);
 
   const resetForm = () => {
-    setNome(""); setCodigo(""); setNovaArea(""); setNovoSegmento("");
+    setNome(""); setCodigo(""); setNovaArea(""); setShowDetalhes(false);
     setDesc({ objetivo: "", fluxo: "", beneficio: "", risco: "", limitacoes: "", cadastrar: "" });
     setPerguntas([]); setErro(""); clearEditing();
   };
@@ -53,8 +54,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
     setErro(""); setLoading(true);
     try {
       const out = await generate(nome.trim(), areaId);
-      if (out.descricao) setDesc((d) => ({ ...d, ...out.descricao }));
-      if (!codigo) setCodigo(slug(nome));
+      if (out.descricao) { setDesc((d) => ({ ...d, ...out.descricao })); setShowDetalhes(true); }
       const novas = (out.perguntas || []).map((p) => ({
         texto: p.pergunta || p.texto || "",
         disposicao: "usar",
@@ -74,28 +74,34 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const rmOpcao = (pi, oi) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: q.opcoes.filter((_, j) => j !== oi) } : q)));
   const rmPergunta = (i) => setPerguntas((p) => p.filter((_, k) => k !== i));
 
+  const gerarCodigoUnico = (baseCod) => {
+    const existentes = new Set(base.funcionalidades.filter((f) => f.id !== editing).map((f) => f.codigo));
+    let cod = baseCod || "func";
+    if (!existentes.has(cod)) return cod;
+    let n = 2;
+    while (existentes.has(`${cod}-${n}`)) n++;
+    return `${cod}-${n}`;
+  };
+
   const salvar = () => {
     setErro("");
     if (!nome.trim()) { setErro("A funcionalidade precisa de um nome."); return; }
 
-    // 1) Resolve segmento (existente ou novo)
-    let segId = segmentoId, segmentosArr = segmentos;
-    if (novoSegmento.trim()) { segId = uid(); segmentosArr = [...segmentos, { id: segId, nome: novoSegmento.trim() }]; }
-    if (!segId) { setErro("Escolha ou crie um segmento."); return; }
+    // 1) Segmento (escolhido; a criação de segmento fica no Assessment)
+    const segId = segmentoId, segmentosArr = segmentos;
+    if (!segId) { setErro("Escolha um segmento."); return; }
 
     // 2) Resolve área dentro do segmento
     let aId = areaId, areas = base.areas;
     if (novaArea.trim()) { aId = uid(); areas = [...areas, { id: aId, nome: novaArea.trim(), segmento_id: segId }]; }
     if (!aId) { setErro("Escolha ou crie uma área no segmento."); return; }
-    // Se escolheu área existente, garante que ela pertença ao segmento resolvido
     if (!novaArea.trim()) {
       const areaSel = areas.find((a) => a.id === aId);
       if (areaSel && areaSel.segmento_id !== segId) { setErro("A área escolhida não pertence a esse segmento."); return; }
     }
 
-    const cod = codigo.trim() || slug(nome);
-    const dup = base.funcionalidades.find((f) => f.codigo === cod && f.id !== editing);
-    if (dup) { setErro(`O código "${cod}" já existe. Ajuste o código (ele é o elo único).`); return; }
+    // 3) Código interno: mantém o existente ao editar; senão gera único a partir do nome
+    const cod = (editing && codigo.trim()) ? codigo.trim() : gerarCodigoUnico(slug(nome));
 
     const usaveis = perguntas.filter((p) => p.disposicao !== "descartar" && p.texto.trim());
     let funcionalidades, perguntasArr, opcoesArr;
@@ -143,48 +149,45 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
             <select className={inputCls} value={segmentoId} onChange={(e) => { setSegmentoId(e.target.value); setNovaArea(""); }}>
               {segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>
-            <input className={inputCls + " mt-2"} placeholder="…ou crie um novo segmento" value={novoSegmento} onChange={(e) => setNovoSegmento(e.target.value)} />
+            <p className="text-xs text-slate-400 mt-1">Crie novos segmentos na aba Assessment.</p>
           </div>
           <div>
-            <Label>Área {novoSegmento.trim() && <span className="text-slate-400 normal-case">(crie uma abaixo p/ o novo segmento)</span>}</Label>
-            <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)} disabled={!!novoSegmento.trim()}>
+            <Label>Área</Label>
+            <select className={inputCls} value={areaId} onChange={(e) => setAreaId(e.target.value)}>
               {areasDoSegmento.length === 0 && <option value="">— sem áreas nesse segmento —</option>}
               {areasDoSegmento.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
             </select>
             <input className={inputCls + " mt-2"} placeholder="…ou crie uma nova área" value={novaArea} onChange={(e) => setNovaArea(e.target.value)} />
           </div>
         </div>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <Label>Nome da funcionalidade</Label>
-            <div className="flex gap-2">
-              <input className={inputCls} placeholder="ex.: Apontamento de produção" value={nome} onChange={(e) => setNome(e.target.value)} />
-              <button className={btnTeal + " whitespace-nowrap"} onClick={handleIA} disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {loading ? "Gerando…" : "Sugerir com IA"}
-              </button>
-            </div>
-          </div>
-          <div>
-            <Label>Código (elo único, slug)</Label>
-            <input className={inputCls + " font-mono"} placeholder="auto a partir do nome" value={codigo} onChange={(e) => setCodigo(slug(e.target.value))} />
+        <div>
+          <Label>Nome da funcionalidade</Label>
+          <div className="flex gap-2">
+            <input className={inputCls} placeholder="ex.: Apontamento de produção" value={nome} onChange={(e) => setNome(e.target.value)} />
+            <button className={btnTeal + " whitespace-nowrap"} onClick={handleIA} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {loading ? "Gerando…" : "Sugerir com IA"}
+            </button>
           </div>
         </div>
       </div>
 
       <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="font-mono text-xs uppercase tracking-widest text-slate-400">Descreve o resultado</span>
-          <span className="text-xs text-slate-400">— não decide o veredito, escreve o relatório</span>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-4">
-          {[["objetivo", "Objetivo"], ["fluxo", "Fluxo (passos)"], ["beneficio", "Benefício → ganho"], ["risco", "Risco → urgência"], ["limitacoes", "Limitações → gancho de custom"], ["cadastrar", "O que cadastrar"]].map(([k, l]) => (
-            <div key={k}>
-              <Label>{l}</Label>
-              <textarea className={inputCls + " resize-y"} style={{ minHeight: 64 }} value={desc[k]} onChange={(e) => setDesc((d) => ({ ...d, [k]: e.target.value }))} />
-            </div>
-          ))}
-        </div>
+        <button className="flex items-center gap-2 w-full text-left" onClick={() => setShowDetalhes((v) => !v)}>
+          {showDetalhes ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+          <span className="font-mono text-xs uppercase tracking-widest text-slate-400">Detalhes da funcionalidade</span>
+          <span className="text-xs text-slate-400">— opcional; a IA preenche. Escreve o relatório, não decide o veredito.</span>
+        </button>
+        {showDetalhes && (
+          <div className="grid sm:grid-cols-2 gap-4 mt-4">
+            {[["objetivo", "Objetivo"], ["fluxo", "Fluxo (passos)"], ["beneficio", "Benefício → ganho"], ["risco", "Risco → urgência"], ["limitacoes", "Limitações → gancho de custom"], ["cadastrar", "O que cadastrar"]].map(([k, l]) => (
+              <div key={k}>
+                <Label>{l}</Label>
+                <textarea className={inputCls + " resize-y"} style={{ minHeight: 64 }} value={desc[k]} onChange={(e) => setDesc((d) => ({ ...d, [k]: e.target.value }))} />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
