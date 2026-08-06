@@ -77,6 +77,11 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
   });
   const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
   const oportunidades = (d?.oportunidades || []);
+  const maturidade = d?.maturidade;
+  const matFaixa = maturidade == null ? null
+    : maturidade >= 67 ? { l: "Madura", cor: "emerald" }
+    : maturidade >= 34 ? { l: "Em evolução", cor: "amber" }
+    : { l: "Baixa", cor: "red" };
   const cruzamentoLabel = (v) => {
     switch (v) {
       case "gap": return "lacuna nossa hoje → oportunidade forte";
@@ -103,8 +108,11 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
 
   const copiar = () => {
     let t = `RELATÓRIO DE ADERÊNCIA\nCliente: ${d.cliente_nome}\nEscopo: ${escopoLabel(d)}\nData: ${fmtDate(d.criado_em)}\n\n`;
-    if (campos.length) { t += `DADOS DA EMPRESA\n`; campos.forEach((c) => (t += `  ${c.label}: ${dadosEmpresa[c.id]}\n`)); t += `\n`; }
+    t += `DADOS DA EMPRESA\n  Nome: ${d.cliente_nome}\n`;
+    campos.forEach((c) => (t += `  ${c.label}: ${dadosEmpresa[c.id]}\n`));
+    t += `\n`;
     t += sintese + "\n";
+    if (matFaixa) t += `Maturidade do negócio: ${matFaixa.l} (${maturidade}/100)\n`;
     if (oportunidades.length) {
       t += `\nOPORTUNIDADES LEVANTADAS (perguntas iniciais)${d.maturidade != null ? ` · maturidade ${d.maturidade}/100` : ""}\n`;
       oportunidades.forEach((fid) => (t += `  • ${funcNome(fid)} — ${cruzamentoLabel(vereditoPorFunc[fid])}\n`));
@@ -145,18 +153,29 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
         </div>
       )}
 
-      {campos.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 mb-5">
-          <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Dados da empresa</h3>
-          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
-            {campos.map((c) => (
-              <div key={c.id} className="flex justify-between text-sm border-b border-slate-100 py-1">
-                <span className="text-slate-500">{c.label}</span><span className="text-slate-800 font-medium">{dadosEmpresa[c.id]}</span>
-              </div>
-            ))}
+      {matFaixa && (
+        <div className={`rounded-xl border p-4 mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 ${matFaixa.cor === "emerald" ? "bg-emerald-50 border-emerald-300" : matFaixa.cor === "amber" ? "bg-amber-50 border-amber-300" : "bg-red-50 border-red-300"}`}>
+          <div>
+            <div className="font-mono text-xs uppercase tracking-widest text-slate-500">Maturidade do negócio</div>
+            <div className={`text-2xl font-semibold ${matFaixa.cor === "emerald" ? "text-emerald-700" : matFaixa.cor === "amber" ? "text-amber-800" : "text-red-700"}`}>{matFaixa.l}</div>
           </div>
+          <div className="text-sm text-slate-600">{maturidade}/100 · das perguntas iniciais</div>
         </div>
       )}
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 mb-5">
+        <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Dados da empresa</h3>
+        <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
+          <div className="flex justify-between text-sm border-b border-slate-100 py-1">
+            <span className="text-slate-500">Nome</span><span className="text-slate-800 font-medium">{d.cliente_nome}</span>
+          </div>
+          {campos.map((c) => (
+            <div key={c.id} className="flex justify-between text-sm border-b border-slate-100 py-1">
+              <span className="text-slate-500">{c.label}</span><span className="text-slate-800 font-medium">{dadosEmpresa[c.id]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {sintese && <p className="text-sm text-slate-600 mb-5 leading-relaxed">{sintese}</p>}
 
