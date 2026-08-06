@@ -26,6 +26,15 @@ function getData() {
   if (!Array.isArray(d.base.assessmentOpcoes)) { d.base.assessmentOpcoes = []; mudou = true; }
   if (!Array.isArray(d.diag.assessments)) { d.diag.assessments = []; mudou = true; }
   if (!Array.isArray(d.diag.assessmentRespostas)) { d.diag.assessmentRespostas = []; mudou = true; }
+  // Ficha da empresa: campos definidos pelo usuário. Semeia 3 exemplos na 1a vez.
+  if (!Array.isArray(d.base.camposEmpresa)) {
+    d.base.camposEmpresa = [
+      { id: "cnpj", label: "CNPJ", tipo: "texto", opcoes: [], obrigatorio: false, ordem: 0 },
+      { id: "filiais", label: "Número de filiais", tipo: "numero", opcoes: [], obrigatorio: false, ordem: 1 },
+      { id: "regime", label: "Regime tributário", tipo: "selecao", opcoes: ["Simples Nacional", "Lucro Presumido", "Lucro Real"], obrigatorio: false, ordem: 2 },
+    ];
+    mudou = true;
+  }
   if (mudou) save(d);
   return d;
 }

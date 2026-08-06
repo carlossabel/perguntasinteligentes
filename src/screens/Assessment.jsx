@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Gauge, Plus, Trash2, Check, X, ChevronRight, ListChecks, PencilLine, Play } from "lucide-react";
+import { Gauge, Plus, Trash2, Check, X, ChevronRight, ListChecks, PencilLine, Play, Building2 } from "lucide-react";
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
 
 const NIVEIS = [
@@ -28,14 +28,99 @@ export default function Assessment({ base, saveBase, diag, saveDiag }) {
         Assessment de segmento
       </SectionTitle>
       <div className="flex gap-1 mb-5 border-b border-slate-200">
-        {[["perguntas", "Perguntas", PencilLine], ["rodar", "Rodar assessment", Play]].map(([id, l, Icon]) => (
+        {[["perguntas", "Perguntas", PencilLine], ["empresa", "Dados da empresa", Building2], ["rodar", "Rodar assessment", Play]].map(([id, l, Icon]) => (
           <button key={id} onClick={() => setModo(id)}
             className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition ${modo === id ? "border-teal-600 text-teal-800" : "border-transparent text-slate-500 hover:text-slate-800"}`}>
             <Icon className="w-4 h-4" /> {l}
           </button>
         ))}
       </div>
-      {modo === "perguntas" ? <CadastroPerguntas base={base} saveBase={saveBase} /> : <RodarAssessment base={base} diag={diag} saveDiag={saveDiag} />}
+      {modo === "perguntas" && <CadastroPerguntas base={base} saveBase={saveBase} />}
+      {modo === "empresa" && <CamposEmpresa base={base} saveBase={saveBase} />}
+      {modo === "rodar" && <RodarAssessment base={base} diag={diag} saveDiag={saveDiag} />}
+    </div>
+  );
+}
+
+const camposOrdenados = (base) => [...(base.camposEmpresa || [])].sort((a, b) => a.ordem - b.ordem);
+const TIPOS = [["texto", "Texto"], ["numero", "Número"], ["selecao", "Seleção"]];
+
+// Renderiza o input de um campo da empresa conforme o tipo.
+function CampoInput({ campo, valor, onChange }) {
+  if (campo.tipo === "selecao") {
+    return (
+      <select className={inputCls} value={valor || ""} onChange={(e) => onChange(e.target.value)}>
+        <option value="">—</option>
+        {(campo.opcoes || []).map((op) => <option key={op} value={op}>{op}</option>)}
+      </select>
+    );
+  }
+  return <input className={inputCls} type={campo.tipo === "numero" ? "number" : "text"} value={valor || ""} onChange={(e) => onChange(e.target.value)} placeholder={campo.label} />;
+}
+
+/* ---------------- Editor de campos da empresa (ficha) ---------------- */
+function CamposEmpresa({ base, saveBase }) {
+  const campos = camposOrdenados(base);
+  const [label, setLabel] = useState("");
+  const [tipo, setTipo] = useState("texto");
+  const [opcoesTxt, setOpcoesTxt] = useState("");
+  const [obrigatorio, setObrigatorio] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const salvar = () => {
+    setErro("");
+    if (!label.trim()) { setErro("Dê um nome ao campo."); return; }
+    const opcoes = tipo === "selecao" ? opcoesTxt.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    if (tipo === "selecao" && opcoes.length < 2) { setErro("Seleção precisa de ao menos 2 opções (separadas por vírgula)."); return; }
+    const novo = { id: uid(), label: label.trim(), tipo, opcoes, obrigatorio, ordem: campos.length };
+    saveBase({ ...base, camposEmpresa: [...(base.camposEmpresa || []), novo] });
+    setLabel(""); setTipo("texto"); setOpcoesTxt(""); setObrigatorio(false);
+  };
+  const remover = (id) => {
+    if (!confirm("Remover este campo? Os assessments já rodados mantêm o valor guardado.")) return;
+    saveBase({ ...base, camposEmpresa: base.camposEmpresa.filter((c) => c.id !== id) });
+  };
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-slate-500">Defina os campos que você preenche sobre a empresa a cada assessment. Valem para todos os segmentos.</p>
+
+      {campos.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400">Campos ({campos.length})</h3>
+          {campos.map((c) => (
+            <div key={c.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+              <span className="text-sm font-medium text-slate-800">{c.label}</span>
+              <span className="font-mono text-xs bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">{TIPOS.find((t) => t[0] === c.tipo)?.[1]}</span>
+              {c.obrigatorio && <span className="text-xs text-red-600">obrigatório</span>}
+              {c.tipo === "selecao" && <span className="text-xs text-slate-400">{c.opcoes.join(" · ")}</span>}
+              <button className="ml-auto p-1 text-slate-400 hover:text-red-600" onClick={() => remover(c.id)}><Trash2 className="w-4 h-4" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+        <h3 className="font-mono text-xs uppercase tracking-widest text-teal-700">Novo campo</h3>
+        {erro && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{erro}</div>}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div><Label>Nome do campo</Label><input className={inputCls} placeholder="ex.: CNPJ, faturamento anual…" value={label} onChange={(e) => setLabel(e.target.value)} /></div>
+          <div><Label>Tipo</Label>
+            <select className={inputCls} value={tipo} onChange={(e) => setTipo(e.target.value)}>
+              {TIPOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+        </div>
+        {tipo === "selecao" && (
+          <div><Label>Opções (separadas por vírgula)</Label>
+            <input className={inputCls} placeholder="Simples Nacional, Lucro Presumido, Lucro Real" value={opcoesTxt} onChange={(e) => setOpcoesTxt(e.target.value)} />
+          </div>
+        )}
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" className="accent-teal-600" checked={obrigatorio} onChange={(e) => setObrigatorio(e.target.checked)} /> Obrigatório ao rodar
+        </label>
+        <div className="flex justify-end"><button className={btnTeal} onClick={salvar}><Check className="w-4 h-4" /> Adicionar campo</button></div>
+      </div>
     </div>
   );
 }
@@ -156,6 +241,8 @@ function RodarAssessment({ base, diag, saveDiag }) {
   const segmentos = base.segmentos || [];
   const [cliente, setCliente] = useState("");
   const [segId, setSegId] = useState(segmentos[0]?.id || "");
+  const [dados, setDados] = useState({});
+  const [erro, setErro] = useState("");
   const [sessao, setSessao] = useState(null);
   const [idx, setIdx] = useState(0);
   const [picks, setPicks] = useState([]);
@@ -176,8 +263,11 @@ function RodarAssessment({ base, diag, saveDiag }) {
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [picks, idx]);
 
   const iniciar = () => {
+    setErro("");
     if (!cliente.trim() || !segId) return;
-    setSessao({ id: uid(), cliente_nome: cliente.trim(), segmento_id: segId, criado_em: nowISO() });
+    const faltando = camposOrdenados(base).filter((c) => c.obrigatorio && !String(dados[c.id] || "").trim());
+    if (faltando.length) { setErro("Preencha os campos obrigatórios: " + faltando.map((c) => c.label).join(", ") + "."); return; }
+    setSessao({ id: uid(), cliente_nome: cliente.trim(), segmento_id: segId, dados: { ...dados }, criado_em: nowISO() });
     setIdx(0); setPicks([]); setResultado(null);
   };
 
@@ -192,7 +282,7 @@ function RodarAssessment({ base, diag, saveDiag }) {
     const niveis = novas.map((o) => o.nivel);
     const oportunidades = [...new Set(novas.flatMap((o) => o.oportunidades))];
     const r = calcularResultado(niveis);
-    const registro = { id: sessao.id, cliente_nome: sessao.cliente_nome, segmento_id: sessao.segmento_id, criado_em: sessao.criado_em, status: "concluido", ...r, oportunidades };
+    const registro = { id: sessao.id, cliente_nome: sessao.cliente_nome, segmento_id: sessao.segmento_id, dados: sessao.dados || {}, criado_em: sessao.criado_em, status: "concluido", ...r, oportunidades };
     const respostas = novas.map((o) => ({ id: uid(), assessment_id: sessao.id, pergunta_id: o.pergunta_id, opcao_id: o.id, criado_em: nowISO() }));
     saveDiag({ ...diag, assessments: [...(diag.assessments || []), registro], assessmentRespostas: [...(diag.assessmentRespostas || []), ...respostas] });
     setResultado({ ...registro });
@@ -204,6 +294,18 @@ function RodarAssessment({ base, diag, saveDiag }) {
     return (
       <div className="space-y-5">
         <div className="text-sm text-slate-500">{resultado.cliente_nome} · {segNome(resultado.segmento_id)} · {fmtDate(resultado.criado_em)}</div>
+        {camposOrdenados(base).some((c) => resultado.dados?.[c.id]) && (
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Dados da empresa</h3>
+            <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
+              {camposOrdenados(base).filter((c) => resultado.dados?.[c.id]).map((c) => (
+                <div key={c.id} className="flex justify-between text-sm border-b border-slate-100 py-1">
+                  <span className="text-slate-500">{c.label}</span><span className="text-slate-800 font-medium">{resultado.dados[c.id]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="rounded-xl bg-slate-50 p-4 max-w-xs"><div className="text-xs text-slate-500 mb-1">Maturidade da empresa</div><div className="text-2xl font-semibold text-teal-800">{resultado.maturidade}<span className="text-sm text-slate-400">/100</span></div></div>
         <div>
           <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Oportunidades acesas ({resultado.oportunidades.length})</h3>
@@ -218,7 +320,7 @@ function RodarAssessment({ base, diag, saveDiag }) {
             </div>}
           {resultado.oportunidades.length > 0 && <p className="text-xs text-slate-400 mt-2">Na próxima fatia, estas viram a seleção do diagnóstico técnico (estágio 2).</p>}
         </div>
-        <button className={btnGhost} onClick={() => { setResultado(null); setCliente(""); }}>Novo assessment</button>
+        <button className={btnGhost} onClick={() => { setResultado(null); setCliente(""); setDados({}); }}>Novo assessment</button>
       </div>
     );
   }
@@ -270,10 +372,21 @@ function RodarAssessment({ base, diag, saveDiag }) {
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+        {erro && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{erro}</div>}
         <div><Label>Cliente</Label><input className={inputCls} placeholder="Nome da empresa" value={cliente} onChange={(e) => setCliente(e.target.value)} /></div>
         <div><Label>Segmento</Label>
           <select className={inputCls} value={segId} onChange={(e) => setSegId(e.target.value)}>{segmentos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}</select>
         </div>
+        {camposOrdenados(base).length > 0 && (
+          <div className="grid sm:grid-cols-2 gap-4 pt-1 border-t border-slate-100">
+            {camposOrdenados(base).map((c) => (
+              <div key={c.id}>
+                <Label>{c.label}{c.obrigatorio && <span className="text-red-500"> *</span>}</Label>
+                <CampoInput campo={c} valor={dados[c.id]} onChange={(v) => setDados((d) => ({ ...d, [c.id]: v }))} />
+              </div>
+            ))}
+          </div>
+        )}
         <button className={btnTeal} onClick={iniciar} disabled={!cliente.trim() || !segId}><Play className="w-4 h-4" /> Iniciar assessment</button>
       </div>
       {anteriores.length > 0 && (
