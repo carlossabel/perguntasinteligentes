@@ -10,25 +10,23 @@ const NIVEIS = [
   { v: 4, l: "4 · maduro / otimizado" },
 ];
 
-// Regra derivada (fatia 1): risco e complexidade saem de maturidade + nº de oportunidades.
+// Estágio 1 é honesto: só o que dá pra afirmar sem o técnico.
+// Maturidade = da empresa (níveis 0-4). Amplitude = tamanho do projeto (nº de frentes/oportunidades).
+// Risco NÃO mora aqui — ele nasce no cruzamento com o diagnóstico técnico (fatia 3),
+// como soma ponderada por veredito: gap 1,0 · parcial 0,4 · custom 0,5 · parceira 0,25 · atende/ok 0.
 export function calcularResultado(niveis, nOportunidades) {
   const maturidade = niveis.length ? Math.round((niveis.reduce((a, b) => a + b, 0) / (niveis.length * 4)) * 100) : 0;
-  const complexidade = nOportunidades >= 4 ? "Alta" : nOportunidades >= 2 ? "Média" : "Baixa";
-  let risco;
-  if (maturidade < 40 && nOportunidades >= 3) risco = "Alto";
-  else if (maturidade < 60 || nOportunidades >= 3) risco = "Médio";
-  else risco = "Baixo";
-  return { maturidade, complexidade, risco };
+  const amplitude = nOportunidades >= 4 ? "Ampla" : nOportunidades >= 2 ? "Média" : "Enxuta";
+  return { maturidade, amplitude };
 }
 
-const corRisco = (r) => r === "Alto" ? "text-red-700" : r === "Médio" ? "text-amber-700" : "text-emerald-700";
-const corComplex = (c) => c === "Alta" ? "text-red-700" : c === "Média" ? "text-amber-700" : "text-emerald-700";
+const corAmplitude = (a) => a === "Ampla" ? "text-amber-700" : a === "Média" ? "text-teal-700" : "text-emerald-700";
 
 export default function Assessment({ base, saveBase, diag, saveDiag }) {
   const [modo, setModo] = useState("perguntas");
   return (
     <div className="max-w-3xl mx-auto">
-      <SectionTitle sub="Estágio 1 · macro. O comercial roda para ler maturidade, complexidade, risco e as oportunidades (funcionalidades) do negócio.">
+      <SectionTitle sub="Estágio 1 · macro. O comercial roda para ler a maturidade da empresa e levantar as oportunidades (funcionalidades) do negócio.">
         Assessment de segmento
       </SectionTitle>
       <div className="flex gap-1 mb-5 border-b border-slate-200">
@@ -208,10 +206,9 @@ function RodarAssessment({ base, diag, saveDiag }) {
     return (
       <div className="space-y-5">
         <div className="text-sm text-slate-500">{resultado.cliente_nome} · {segNome(resultado.segmento_id)} · {fmtDate(resultado.criado_em)}</div>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate-500 mb-1">Maturidade</div><div className="text-2xl font-semibold text-teal-800">{resultado.maturidade}<span className="text-sm text-slate-400">/100</span></div></div>
-          <div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate-500 mb-1">Complexidade</div><div className={"text-2xl font-semibold " + corComplex(resultado.complexidade)}>{resultado.complexidade}</div></div>
-          <div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate-500 mb-1">Risco</div><div className={"text-2xl font-semibold " + corRisco(resultado.risco)}>{resultado.risco}</div></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate-500 mb-1">Maturidade da empresa</div><div className="text-2xl font-semibold text-teal-800">{resultado.maturidade}<span className="text-sm text-slate-400">/100</span></div></div>
+          <div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate-500 mb-1">Amplitude ({resultado.oportunidades.length} frentes)</div><div className={"text-2xl font-semibold " + corAmplitude(resultado.amplitude)}>{resultado.amplitude}</div></div>
         </div>
         <div>
           <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Oportunidades acesas ({resultado.oportunidades.length})</h3>
@@ -292,7 +289,7 @@ function RodarAssessment({ base, diag, saveDiag }) {
               <button key={d.id} onClick={() => setResultado(d)} className="w-full flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-left hover:border-teal-400 transition">
                 <div className="flex-1">
                   <div className="text-sm font-medium text-slate-800">{d.cliente_nome}</div>
-                  <div className="text-xs text-slate-400 font-mono">{segNome(d.segmento_id)} · maturidade {d.maturidade} · risco {d.risco} · {fmtDate(d.criado_em)}</div>
+                  <div className="text-xs text-slate-400 font-mono">{segNome(d.segmento_id)} · maturidade {d.maturidade} · {d.oportunidades?.length || 0} oportunidades · {fmtDate(d.criado_em)}</div>
                 </div>
                 <Gauge className="w-4 h-4 text-teal-600" />
               </button>
