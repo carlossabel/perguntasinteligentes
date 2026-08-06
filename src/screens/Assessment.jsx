@@ -3,24 +3,22 @@ import { Gauge, Plus, Trash2, Check, X, ChevronRight, ListChecks, PencilLine, Pl
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
 
 const NIVEIS = [
-  { v: 0, l: "0 · imaturo / inexistente" },
-  { v: 1, l: "1 · inicial" },
-  { v: 2, l: "2 · em desenvolvimento" },
-  { v: 3, l: "3 · gerenciado" },
-  { v: 4, l: "4 · maduro / otimizado" },
+  { v: 0, l: "Imaturo (0)" },
+  { v: 1, l: "Inicial (1)" },
+  { v: 2, l: "Em desenvolvimento (2)" },
+  { v: 3, l: "Gerenciado (3)" },
+  { v: 4, l: "Maduro (4)" },
 ];
+const nivelLabel = (v) => (NIVEIS.find((n) => n.v === Number(v)) || {}).l || `nível ${v}`;
 
 // Estágio 1 é honesto: só o que dá pra afirmar sem o técnico.
-// Maturidade = da empresa (níveis 0-4). Amplitude = tamanho do projeto (nº de frentes/oportunidades).
-// Risco NÃO mora aqui — ele nasce no cruzamento com o diagnóstico técnico (fatia 3),
+// Maturidade = da empresa (níveis 0-4). As oportunidades (com sua contagem) falam por si.
+// Risco NÃO mora aqui — nasce no cruzamento com o diagnóstico técnico (fatia 3),
 // como soma ponderada por veredito: gap 1,0 · parcial 0,4 · custom 0,5 · parceira 0,25 · atende/ok 0.
-export function calcularResultado(niveis, nOportunidades) {
+export function calcularResultado(niveis) {
   const maturidade = niveis.length ? Math.round((niveis.reduce((a, b) => a + b, 0) / (niveis.length * 4)) * 100) : 0;
-  const amplitude = nOportunidades >= 4 ? "Ampla" : nOportunidades >= 2 ? "Média" : "Enxuta";
-  return { maturidade, amplitude };
+  return { maturidade };
 }
-
-const corAmplitude = (a) => a === "Ampla" ? "text-amber-700" : a === "Média" ? "text-teal-700" : "text-emerald-700";
 
 export default function Assessment({ base, saveBase, diag, saveDiag }) {
   const [modo, setModo] = useState("perguntas");
@@ -101,7 +99,7 @@ function CadastroPerguntas({ base, saveBase }) {
               <div className="mt-2 space-y-1">
                 {opcoesDe(p.id).map((o) => (
                   <div key={o.id} className="flex items-center gap-2 text-xs text-slate-600">
-                    <span className="font-mono bg-slate-100 rounded px-1.5 py-0.5">nível {o.nivel}</span>
+                    <span className="font-mono bg-slate-100 rounded px-1.5 py-0.5">{nivelLabel(o.nivel)}</span>
                     <span className="flex-1">{o.texto}</span>
                     {o.oportunidades.length > 0 && <span className="text-teal-700">{o.oportunidades.map(funcNome).join(", ")}</span>}
                   </div>
@@ -118,13 +116,13 @@ function CadastroPerguntas({ base, saveBase }) {
         <div><Label>Pergunta</Label><input className={inputCls} placeholder="ex.: Como a empresa acompanha a produção hoje?" value={texto} onChange={(e) => setTexto(e.target.value)} /></div>
 
         <div className="space-y-3">
-          <Label>Opções (cada uma pontua maturidade e pode acender oportunidades)</Label>
+          <Label>Opções (cada uma tem um grau de maturidade e pode acender oportunidades)</Label>
           {opcoes.map((o, i) => (
             <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
               <div className="flex items-center gap-2">
                 <input className={inputCls} placeholder="Texto da opção" value={o.texto} onChange={(e) => updOp(i, { texto: e.target.value })} />
-                <select className="rounded-lg border border-slate-300 px-2 py-2 text-xs font-mono outline-none focus:border-teal-500" value={o.nivel} onChange={(e) => updOp(i, { nivel: e.target.value })}>
-                  {NIVEIS.map((n) => <option key={n.v} value={n.v}>nível {n.v}</option>)}
+                <select title="Grau de maturidade da resposta" className="rounded-lg border border-slate-300 px-2 py-2 text-xs outline-none focus:border-teal-500" style={{ minWidth: 150 }} value={o.nivel} onChange={(e) => updOp(i, { nivel: e.target.value })}>
+                  {NIVEIS.map((n) => <option key={n.v} value={n.v}>{n.l}</option>)}
                 </select>
                 <button className="p-2 text-slate-400 hover:text-red-600" onClick={() => rmOp(i)}><X className="w-4 h-4" /></button>
               </div>
@@ -193,7 +191,7 @@ function RodarAssessment({ base, diag, saveDiag }) {
   const finalizar = (novas) => {
     const niveis = novas.map((o) => o.nivel);
     const oportunidades = [...new Set(novas.flatMap((o) => o.oportunidades))];
-    const r = calcularResultado(niveis, oportunidades.length);
+    const r = calcularResultado(niveis);
     const registro = { id: sessao.id, cliente_nome: sessao.cliente_nome, segmento_id: sessao.segmento_id, criado_em: sessao.criado_em, status: "concluido", ...r, oportunidades };
     const respostas = novas.map((o) => ({ id: uid(), assessment_id: sessao.id, pergunta_id: o.pergunta_id, opcao_id: o.id, criado_em: nowISO() }));
     saveDiag({ ...diag, assessments: [...(diag.assessments || []), registro], assessmentRespostas: [...(diag.assessmentRespostas || []), ...respostas] });
@@ -206,10 +204,7 @@ function RodarAssessment({ base, diag, saveDiag }) {
     return (
       <div className="space-y-5">
         <div className="text-sm text-slate-500">{resultado.cliente_nome} · {segNome(resultado.segmento_id)} · {fmtDate(resultado.criado_em)}</div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate-500 mb-1">Maturidade da empresa</div><div className="text-2xl font-semibold text-teal-800">{resultado.maturidade}<span className="text-sm text-slate-400">/100</span></div></div>
-          <div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate-500 mb-1">Amplitude ({resultado.oportunidades.length} frentes)</div><div className={"text-2xl font-semibold " + corAmplitude(resultado.amplitude)}>{resultado.amplitude}</div></div>
-        </div>
+        <div className="rounded-xl bg-slate-50 p-4 max-w-xs"><div className="text-xs text-slate-500 mb-1">Maturidade da empresa</div><div className="text-2xl font-semibold text-teal-800">{resultado.maturidade}<span className="text-sm text-slate-400">/100</span></div></div>
         <div>
           <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Oportunidades acesas ({resultado.oportunidades.length})</h3>
           {resultado.oportunidades.length === 0 ? <p className="text-sm text-slate-400">Nenhuma lacuna apontada nas dimensões avaliadas.</p>
