@@ -1,0 +1,1211 @@
+{
+  "base": {
+    "segmentos": [
+      {
+        "id": "seg-lanchonete",
+        "nome": "Lanchonete / Food Service"
+      }
+    ],
+    "areas": [
+      {
+        "id": "area-vendas",
+        "nome": "Atendimento e Vendas",
+        "segmento_id": "seg-lanchonete"
+      },
+      {
+        "id": "area-cozinha",
+        "nome": "Cozinha e Produção",
+        "segmento_id": "seg-lanchonete"
+      },
+      {
+        "id": "area-delivery",
+        "nome": "Delivery e Pedidos",
+        "segmento_id": "seg-lanchonete"
+      },
+      {
+        "id": "area-estoque",
+        "nome": "Estoque e Compras",
+        "segmento_id": "seg-lanchonete"
+      },
+      {
+        "id": "area-financeiro",
+        "nome": "Financeiro e Fiscal",
+        "segmento_id": "seg-lanchonete"
+      }
+    ],
+    "funcionalidades": [
+      {
+        "id": "func-pdv",
+        "area_id": "area-vendas",
+        "segmento_ids": [
+          "seg-lanchonete"
+        ],
+        "codigo": "pdv-balcao",
+        "nome": "Frente de caixa (PDV)",
+        "objetivo": "Registrar cada venda no balcão de forma rápida, com o produto certo e o preço certo.",
+        "fluxo": "1) Atendente seleciona os itens. 2) Sistema soma e aplica promoções. 3) Recebe (dinheiro, cartão, Pix). 4) Baixa o insumo e registra a venda.",
+        "beneficio": "Fila anda mais rápido, ninguém erra troco e toda venda fica registrada.",
+        "risco": "Sem PDV, some faturamento no caderno, o caixa não bate e não dá pra saber o que mais vende.",
+        "limitacoes": "Balança integrada e alguns leitores exigem homologação do equipamento.",
+        "cadastrar": "Produtos, preços, formas de pagamento e promoções.",
+        "criado_em": "2026-08-06T13:00:00.000Z",
+        "atualizado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "func-comanda",
+        "area_id": "area-vendas",
+        "segmento_ids": [
+          "seg-lanchonete"
+        ],
+        "codigo": "comanda-mesas",
+        "nome": "Comanda e controle de mesas",
+        "objetivo": "Controlar o que cada mesa/comanda consumiu e fechar a conta sem erro.",
+        "fluxo": "1) Abre a comanda. 2) Lança itens ao longo do atendimento. 3) Fecha e cobra. 4) Libera a mesa.",
+        "beneficio": "Fim das contas 'de cabeça' e das divergências no fechamento.",
+        "risco": "Comanda no papel some, borra e gera discussão com o cliente na hora de pagar.",
+        "limitacoes": "Comanda eletrônica em mão exige tablet/coletor.",
+        "cadastrar": "Mesas, comandas e regras de taxa de serviço.",
+        "criado_em": "2026-08-06T13:00:00.000Z",
+        "atualizado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "func-kds",
+        "area_id": "area-cozinha",
+        "segmento_ids": [
+          "seg-lanchonete"
+        ],
+        "codigo": "kds-cozinha",
+        "nome": "Monitor de cozinha (KDS)",
+        "objetivo": "Levar o pedido do caixa direto para a cozinha, organizado e sem papel.",
+        "fluxo": "1) Pedido é lançado no caixa. 2) Aparece na tela da cozinha. 3) Cozinha marca em preparo/pronto. 4) Atendimento é avisado.",
+        "beneficio": "Menos pedido perdido, menos grito e tempo de preparo controlado.",
+        "risco": "Pedido em papelzinho se perde, sai errado e atrasa o salão.",
+        "limitacoes": "Precisa de uma tela/monitor na cozinha; o software cobre o resto.",
+        "cadastrar": "Setores de produção (chapa, fritadeira, montagem) e roteamento por item.",
+        "criado_em": "2026-08-06T13:00:00.000Z",
+        "atualizado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "func-ficha",
+        "area_id": "area-cozinha",
+        "segmento_ids": [
+          "seg-lanchonete"
+        ],
+        "codigo": "ficha-tecnica",
+        "nome": "Ficha técnica e custo do produto",
+        "objetivo": "Saber quanto custa cada lanche e quanto ele dá de lucro.",
+        "fluxo": "1) Cadastra a receita (insumos e quantidades). 2) Sistema soma o custo. 3) Compara com o preço de venda. 4) Mostra a margem.",
+        "beneficio": "Preço com base no custo real, não no 'achismo' — e baixa de estoque correta.",
+        "risco": "Sem ficha técnica, você vende no prejuízo sem perceber e não sabe onde está a margem.",
+        "limitacoes": "Rendimento variável (ex.: perda de fritura) exige calibragem manual.",
+        "cadastrar": "Receitas/fichas técnicas, insumos e rendimento por produto.",
+        "criado_em": "2026-08-06T13:00:00.000Z",
+        "atualizado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "func-delivery",
+        "area_id": "area-delivery",
+        "segmento_ids": [
+          "seg-lanchonete"
+        ],
+        "codigo": "integra-delivery",
+        "nome": "Integração com apps de delivery",
+        "objetivo": "Receber os pedidos dos apps direto no sistema, sem redigitar.",
+        "fluxo": "1) Pedido entra no app. 2) Cai automático no caixa e na cozinha. 3) Baixa estoque. 4) Entra no fechamento do dia.",
+        "beneficio": "Acaba a redigitação, o erro de pedido e a conciliação manual dos apps.",
+        "risco": "Relançar pedido de app na mão gera erro, atraso e retrabalho no fechamento.",
+        "limitacoes": "A conexão com os apps é feita via um hub/integrador parceiro.",
+        "cadastrar": "Lojas nos apps, de-para de produtos e credenciais do integrador.",
+        "criado_em": "2026-08-06T13:00:00.000Z",
+        "atualizado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "func-cardapio",
+        "area_id": "area-delivery",
+        "segmento_ids": [
+          "seg-lanchonete"
+        ],
+        "codigo": "cardapio-digital",
+        "nome": "Cardápio digital / pedido por QR Code",
+        "objetivo": "Deixar o cliente ver o cardápio e pedir pelo próprio celular.",
+        "fluxo": "1) Cliente lê o QR na mesa. 2) Monta o pedido. 3) Cai na cozinha. 4) Paga pelo celular.",
+        "beneficio": "Menos fila, giro de mesa mais rápido e cardápio sempre atualizado.",
+        "risco": "Cardápio de papel desatualizado e dependência do atendente para tudo.",
+        "limitacoes": "Recurso ainda não faz parte do produto padrão — hoje é roadmap.",
+        "cadastrar": "Cardápio digital, fotos e mesas com QR.",
+        "criado_em": "2026-08-06T13:00:00.000Z",
+        "atualizado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "func-estoque",
+        "area_id": "area-estoque",
+        "segmento_ids": [
+          "seg-lanchonete"
+        ],
+        "codigo": "estoque-insumos",
+        "nome": "Controle de estoque de insumos",
+        "objetivo": "Saber quanto tem de cada insumo e evitar faltar pão, carne ou embalagem.",
+        "fluxo": "1) Entrada por compra. 2) Baixa automática por venda (ficha técnica). 3) Alerta de estoque mínimo. 4) Sugestão de compra.",
+        "beneficio": "Não falta insumo no rush e não sobra o que estraga.",
+        "risco": "Sem controle, falta item na hora do movimento e sobra o que vence.",
+        "limitacoes": "Contagem por peso exige balança; validade por lote é configurável.",
+        "cadastrar": "Insumos, unidades, estoque mínimo e fornecedores.",
+        "criado_em": "2026-08-06T13:00:00.000Z",
+        "atualizado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "func-fiscal",
+        "area_id": "area-financeiro",
+        "segmento_ids": [
+          "seg-lanchonete"
+        ],
+        "codigo": "emissao-fiscal",
+        "nome": "Emissão fiscal (NFC-e / SAT)",
+        "objetivo": "Emitir o cupom fiscal da venda direto do caixa, dentro da regra do estado.",
+        "fluxo": "1) Fecha a venda. 2) Calcula o imposto. 3) Transmite à SEFAZ. 4) Entrega o cupom ao cliente.",
+        "beneficio": "Fim do risco fiscal e da emissão por fora do faturamento.",
+        "risco": "Vender sem cupom ou emitir por fora gera multa e caixa que não bate.",
+        "limitacoes": "Regras variam por estado; a parametrização inicial é feita na implantação.",
+        "cadastrar": "Regras fiscais do estado, certificado digital e impressora fiscal.",
+        "criado_em": "2026-08-06T13:00:00.000Z",
+        "atualizado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "func-caixa",
+        "area_id": "area-financeiro",
+        "segmento_ids": [
+          "seg-lanchonete"
+        ],
+        "codigo": "fechamento-caixa",
+        "nome": "Fechamento de caixa e conciliação",
+        "objetivo": "Fechar o dia sabendo quanto entrou por dinheiro, cartão, Pix e apps.",
+        "fluxo": "1) Abre o caixa com fundo. 2) Registra sangrias/reforços. 3) Fecha por forma de pagamento. 4) Confere com o esperado.",
+        "beneficio": "O caixa bate todo dia e some a dúvida do 'faltou dinheiro?'.",
+        "risco": "Fechar no papel esconde furo de caixa e some com o controle do dono.",
+        "limitacoes": "Conciliação automática das maquininhas depende do adquirente.",
+        "cadastrar": "Caixas, formas de pagamento e taxas das maquininhas.",
+        "criado_em": "2026-08-06T13:00:00.000Z",
+        "atualizado_em": "2026-08-06T13:00:00.000Z"
+      }
+    ],
+    "perguntas": [
+      {
+        "id": "perg-func-pdv",
+        "funcionalidade_id": "func-pdv",
+        "texto": "Como a lanchonete registra as vendas no balcão hoje?",
+        "origem": "humano",
+        "status": "aprovada",
+        "motivo": "",
+        "avaliado_por": "seed",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "perg-func-comanda",
+        "funcionalidade_id": "func-comanda",
+        "texto": "Como controlam o consumo de cada mesa/comanda hoje?",
+        "origem": "humano",
+        "status": "aprovada",
+        "motivo": "",
+        "avaliado_por": "seed",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "perg-func-kds",
+        "funcionalidade_id": "func-kds",
+        "texto": "Como os pedidos chegam à cozinha hoje?",
+        "origem": "humano",
+        "status": "aprovada",
+        "motivo": "",
+        "avaliado_por": "seed",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "perg-func-ficha",
+        "funcionalidade_id": "func-ficha",
+        "texto": "Como sabem o custo e a margem de cada produto hoje?",
+        "origem": "humano",
+        "status": "aprovada",
+        "motivo": "",
+        "avaliado_por": "seed",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "perg-func-delivery",
+        "funcionalidade_id": "func-delivery",
+        "texto": "Como vocês tratam os pedidos de delivery hoje?",
+        "origem": "humano",
+        "status": "aprovada",
+        "motivo": "",
+        "avaliado_por": "seed",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "perg-func-cardapio",
+        "funcionalidade_id": "func-cardapio",
+        "texto": "Como o cliente vê o cardápio e faz o pedido hoje?",
+        "origem": "humano",
+        "status": "aprovada",
+        "motivo": "",
+        "avaliado_por": "seed",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "perg-func-estoque",
+        "funcionalidade_id": "func-estoque",
+        "texto": "Como controlam o estoque de insumos hoje?",
+        "origem": "humano",
+        "status": "aprovada",
+        "motivo": "",
+        "avaliado_por": "seed",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "perg-func-fiscal",
+        "funcionalidade_id": "func-fiscal",
+        "texto": "Como emitem o cupom/nota da venda hoje?",
+        "origem": "humano",
+        "status": "aprovada",
+        "motivo": "",
+        "avaliado_por": "seed",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "perg-func-caixa",
+        "funcionalidade_id": "func-caixa",
+        "texto": "Como fecham o caixa no fim do dia hoje?",
+        "origem": "humano",
+        "status": "aprovada",
+        "motivo": "",
+        "avaliado_por": "seed",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      }
+    ],
+    "opcoes": [
+      {
+        "id": "perg-func-pdv-o0",
+        "pergunta_id": "perg-func-pdv",
+        "texto": "Já usa um PDV que integra com cozinha e estoque",
+        "veredito": "ok",
+        "ordem": 0
+      },
+      {
+        "id": "perg-func-pdv-o1",
+        "pergunta_id": "perg-func-pdv",
+        "texto": "Anota no caderno / bloco e soma na calculadora",
+        "veredito": "atende",
+        "ordem": 1
+      },
+      {
+        "id": "perg-func-pdv-o2",
+        "pergunta_id": "perg-func-pdv",
+        "texto": "Usa um app de caixa simples, sem integração",
+        "veredito": "atende",
+        "ordem": 2
+      },
+      {
+        "id": "perg-func-pdv-o3",
+        "pergunta_id": "perg-func-pdv",
+        "texto": "Balança/impressora de um fornecedor específico",
+        "veredito": "custom",
+        "ordem": 3
+      },
+      {
+        "id": "perg-func-pdv-o4",
+        "pergunta_id": "perg-func-pdv",
+        "texto": "Não registra venda por venda",
+        "veredito": "gap",
+        "ordem": 4
+      },
+      {
+        "id": "perg-func-pdv-o5",
+        "pergunta_id": "perg-func-pdv",
+        "texto": "Outro",
+        "veredito": "rever",
+        "ordem": 5
+      },
+      {
+        "id": "perg-func-comanda-o0",
+        "pergunta_id": "perg-func-comanda",
+        "texto": "Comanda eletrônica integrada ao caixa",
+        "veredito": "ok",
+        "ordem": 0
+      },
+      {
+        "id": "perg-func-comanda-o1",
+        "pergunta_id": "perg-func-comanda",
+        "texto": "Bloco de comanda de papel que funciona bem no tamanho de hoje",
+        "veredito": "ok",
+        "ordem": 1
+      },
+      {
+        "id": "perg-func-comanda-o2",
+        "pergunta_id": "perg-func-comanda",
+        "texto": "Caderninho por mesa",
+        "veredito": "atende",
+        "ordem": 2
+      },
+      {
+        "id": "perg-func-comanda-o3",
+        "pergunta_id": "perg-func-comanda",
+        "texto": "Comanda em coletor de um fornecedor específico",
+        "veredito": "custom",
+        "ordem": 3
+      },
+      {
+        "id": "perg-func-comanda-o4",
+        "pergunta_id": "perg-func-comanda",
+        "texto": "Não há controle por mesa",
+        "veredito": "gap",
+        "ordem": 4
+      },
+      {
+        "id": "perg-func-comanda-o5",
+        "pergunta_id": "perg-func-comanda",
+        "texto": "Outro",
+        "veredito": "rever",
+        "ordem": 5
+      },
+      {
+        "id": "perg-func-kds-o0",
+        "pergunta_id": "perg-func-kds",
+        "texto": "Monitor de cozinha (tela) já em uso",
+        "veredito": "ok",
+        "ordem": 0
+      },
+      {
+        "id": "perg-func-kds-o1",
+        "pergunta_id": "perg-func-kds",
+        "texto": "Impressora de pedidos na cozinha",
+        "veredito": "atende",
+        "ordem": 1
+      },
+      {
+        "id": "perg-func-kds-o2",
+        "pergunta_id": "perg-func-kds",
+        "texto": "Comanda de papel entregue na mão",
+        "veredito": "parcial",
+        "ordem": 2
+      },
+      {
+        "id": "perg-func-kds-o3",
+        "pergunta_id": "perg-func-kds",
+        "texto": "Gritando o pedido para a cozinha",
+        "veredito": "parcial",
+        "ordem": 3
+      },
+      {
+        "id": "perg-func-kds-o4",
+        "pergunta_id": "perg-func-kds",
+        "texto": "Não há organização de fila de preparo",
+        "veredito": "gap",
+        "ordem": 4
+      },
+      {
+        "id": "perg-func-kds-o5",
+        "pergunta_id": "perg-func-kds",
+        "texto": "Outro",
+        "veredito": "rever",
+        "ordem": 5
+      },
+      {
+        "id": "perg-func-ficha-o0",
+        "pergunta_id": "perg-func-ficha",
+        "texto": "Sistema calcula por ficha técnica",
+        "veredito": "ok",
+        "ordem": 0
+      },
+      {
+        "id": "perg-func-ficha-o1",
+        "pergunta_id": "perg-func-ficha",
+        "texto": "Planilha com as receitas e custos",
+        "veredito": "atende",
+        "ordem": 1
+      },
+      {
+        "id": "perg-func-ficha-o2",
+        "pergunta_id": "perg-func-ficha",
+        "texto": "Cálculo de rendimento muito específico da casa",
+        "veredito": "custom",
+        "ordem": 2
+      },
+      {
+        "id": "perg-func-ficha-o3",
+        "pergunta_id": "perg-func-ficha",
+        "texto": "Estimativa de cabeça / preço do concorrente",
+        "veredito": "gap",
+        "ordem": 3
+      },
+      {
+        "id": "perg-func-ficha-o4",
+        "pergunta_id": "perg-func-ficha",
+        "texto": "Não sabem o custo do prato",
+        "veredito": "gap",
+        "ordem": 4
+      },
+      {
+        "id": "perg-func-ficha-o5",
+        "pergunta_id": "perg-func-ficha",
+        "texto": "Outro",
+        "veredito": "rever",
+        "ordem": 5
+      },
+      {
+        "id": "perg-func-delivery-o0",
+        "pergunta_id": "perg-func-delivery",
+        "texto": "Apps já integrados direto ao sistema",
+        "veredito": "ok",
+        "ordem": 0
+      },
+      {
+        "id": "perg-func-delivery-o1",
+        "pergunta_id": "perg-func-delivery",
+        "texto": "Recebem pelos apps e relançam manual no caixa",
+        "veredito": "parceira",
+        "ordem": 1
+      },
+      {
+        "id": "perg-func-delivery-o2",
+        "pergunta_id": "perg-func-delivery",
+        "texto": "Anotam pedidos de WhatsApp/telefone à mão",
+        "veredito": "parceira",
+        "ordem": 2
+      },
+      {
+        "id": "perg-func-delivery-o3",
+        "pergunta_id": "perg-func-delivery",
+        "texto": "Integração especial pedida pelo cliente",
+        "veredito": "custom",
+        "ordem": 3
+      },
+      {
+        "id": "perg-func-delivery-o4",
+        "pergunta_id": "perg-func-delivery",
+        "texto": "Não fazem delivery",
+        "veredito": "ok",
+        "ordem": 4
+      },
+      {
+        "id": "perg-func-delivery-o5",
+        "pergunta_id": "perg-func-delivery",
+        "texto": "Outro",
+        "veredito": "rever",
+        "ordem": 5
+      },
+      {
+        "id": "perg-func-cardapio-o0",
+        "pergunta_id": "perg-func-cardapio",
+        "texto": "Cardápio digital com QR já em uso",
+        "veredito": "ok",
+        "ordem": 0
+      },
+      {
+        "id": "perg-func-cardapio-o1",
+        "pergunta_id": "perg-func-cardapio",
+        "texto": "Cardápio impresso na mesa",
+        "veredito": "gap",
+        "ordem": 1
+      },
+      {
+        "id": "perg-func-cardapio-o2",
+        "pergunta_id": "perg-func-cardapio",
+        "texto": "Atendente decora e informa",
+        "veredito": "gap",
+        "ordem": 2
+      },
+      {
+        "id": "perg-func-cardapio-o3",
+        "pergunta_id": "perg-func-cardapio",
+        "texto": "Solução de cardápio digital sob medida",
+        "veredito": "custom",
+        "ordem": 3
+      },
+      {
+        "id": "perg-func-cardapio-o4",
+        "pergunta_id": "perg-func-cardapio",
+        "texto": "Outro",
+        "veredito": "rever",
+        "ordem": 4
+      },
+      {
+        "id": "perg-func-estoque-o0",
+        "pergunta_id": "perg-func-estoque",
+        "texto": "Sistema com baixa automática por venda",
+        "veredito": "ok",
+        "ordem": 0
+      },
+      {
+        "id": "perg-func-estoque-o1",
+        "pergunta_id": "perg-func-estoque",
+        "texto": "Contagem manual periódica",
+        "veredito": "atende",
+        "ordem": 1
+      },
+      {
+        "id": "perg-func-estoque-o2",
+        "pergunta_id": "perg-func-estoque",
+        "texto": "Planilha de estoque",
+        "veredito": "atende",
+        "ordem": 2
+      },
+      {
+        "id": "perg-func-estoque-o3",
+        "pergunta_id": "perg-func-estoque",
+        "texto": "Controle por lote/validade bem específico",
+        "veredito": "custom",
+        "ordem": 3
+      },
+      {
+        "id": "perg-func-estoque-o4",
+        "pergunta_id": "perg-func-estoque",
+        "texto": "Não controlam / vão no olho",
+        "veredito": "gap",
+        "ordem": 4
+      },
+      {
+        "id": "perg-func-estoque-o5",
+        "pergunta_id": "perg-func-estoque",
+        "texto": "Outro",
+        "veredito": "rever",
+        "ordem": 5
+      },
+      {
+        "id": "perg-func-fiscal-o0",
+        "pergunta_id": "perg-func-fiscal",
+        "texto": "Sistema emite NFC-e direto do caixa",
+        "veredito": "ok",
+        "ordem": 0
+      },
+      {
+        "id": "perg-func-fiscal-o1",
+        "pergunta_id": "perg-func-fiscal",
+        "texto": "Emitem à parte no app/site da SEFAZ",
+        "veredito": "atende",
+        "ordem": 1
+      },
+      {
+        "id": "perg-func-fiscal-o2",
+        "pergunta_id": "perg-func-fiscal",
+        "texto": "Contador emite depois, por fora",
+        "veredito": "atende",
+        "ordem": 2
+      },
+      {
+        "id": "perg-func-fiscal-o3",
+        "pergunta_id": "perg-func-fiscal",
+        "texto": "Cenário fiscal específico do município",
+        "veredito": "custom",
+        "ordem": 3
+      },
+      {
+        "id": "perg-func-fiscal-o4",
+        "pergunta_id": "perg-func-fiscal",
+        "texto": "Não emitem cupom fiscal",
+        "veredito": "gap",
+        "ordem": 4
+      },
+      {
+        "id": "perg-func-fiscal-o5",
+        "pergunta_id": "perg-func-fiscal",
+        "texto": "Outro",
+        "veredito": "rever",
+        "ordem": 5
+      },
+      {
+        "id": "perg-func-caixa-o0",
+        "pergunta_id": "perg-func-caixa",
+        "texto": "Sistema fecha e concilia por forma de pagamento",
+        "veredito": "ok",
+        "ordem": 0
+      },
+      {
+        "id": "perg-func-caixa-o1",
+        "pergunta_id": "perg-func-caixa",
+        "texto": "Somam no fim do dia num caderno/planilha",
+        "veredito": "atende",
+        "ordem": 1
+      },
+      {
+        "id": "perg-func-caixa-o2",
+        "pergunta_id": "perg-func-caixa",
+        "texto": "Conciliação especial das maquininhas",
+        "veredito": "custom",
+        "ordem": 2
+      },
+      {
+        "id": "perg-func-caixa-o3",
+        "pergunta_id": "perg-func-caixa",
+        "texto": "Não fazem fechamento de caixa",
+        "veredito": "gap",
+        "ordem": 3
+      },
+      {
+        "id": "perg-func-caixa-o4",
+        "pergunta_id": "perg-func-caixa",
+        "texto": "Outro",
+        "veredito": "rever",
+        "ordem": 4
+      }
+    ],
+    "assessmentPerguntas": [
+      {
+        "id": "aq-vendas",
+        "segmento_id": "seg-lanchonete",
+        "texto": "Como a lanchonete registra pedidos e vendas hoje?",
+        "origem": "humano",
+        "ordem": 0
+      },
+      {
+        "id": "aq-cozinha",
+        "segmento_id": "seg-lanchonete",
+        "texto": "Como os pedidos chegam à cozinha hoje?",
+        "origem": "humano",
+        "ordem": 1
+      },
+      {
+        "id": "aq-delivery",
+        "segmento_id": "seg-lanchonete",
+        "texto": "Como vocês trabalham com delivery hoje?",
+        "origem": "humano",
+        "ordem": 2
+      },
+      {
+        "id": "aq-estoque",
+        "segmento_id": "seg-lanchonete",
+        "texto": "Como controlam o estoque de insumos hoje?",
+        "origem": "humano",
+        "ordem": 3
+      },
+      {
+        "id": "aq-fiscal",
+        "segmento_id": "seg-lanchonete",
+        "texto": "Como emitem cupom e fecham o caixa hoje?",
+        "origem": "humano",
+        "ordem": 4
+      },
+      {
+        "id": "aq-custo",
+        "segmento_id": "seg-lanchonete",
+        "texto": "Como sabem o custo e o lucro de cada produto hoje?",
+        "origem": "humano",
+        "ordem": 5
+      }
+    ],
+    "assessmentOpcoes": [
+      {
+        "id": "aq-vendas-o0",
+        "pergunta_id": "aq-vendas",
+        "texto": "Tudo na cabeça / bloco de papel",
+        "nivel": 0,
+        "oportunidades": [
+          "func-pdv",
+          "func-comanda"
+        ],
+        "ordem": 0
+      },
+      {
+        "id": "aq-vendas-o1",
+        "pergunta_id": "aq-vendas",
+        "texto": "Caderno e calculadora",
+        "nivel": 1,
+        "oportunidades": [
+          "func-pdv"
+        ],
+        "ordem": 1
+      },
+      {
+        "id": "aq-vendas-o2",
+        "pergunta_id": "aq-vendas",
+        "texto": "Planilha ou app genérico",
+        "nivel": 2,
+        "oportunidades": [
+          "func-pdv"
+        ],
+        "ordem": 2
+      },
+      {
+        "id": "aq-vendas-o3",
+        "pergunta_id": "aq-vendas",
+        "texto": "Um PDV simples de mercado",
+        "nivel": 3,
+        "oportunidades": [],
+        "ordem": 3
+      },
+      {
+        "id": "aq-vendas-o4",
+        "pergunta_id": "aq-vendas",
+        "texto": "Sistema integrado (caixa + cozinha + estoque)",
+        "nivel": 4,
+        "oportunidades": [],
+        "ordem": 4
+      },
+      {
+        "id": "aq-cozinha-o0",
+        "pergunta_id": "aq-cozinha",
+        "texto": "Gritando / papelzinho solto",
+        "nivel": 0,
+        "oportunidades": [
+          "func-kds",
+          "func-comanda"
+        ],
+        "ordem": 0
+      },
+      {
+        "id": "aq-cozinha-o1",
+        "pergunta_id": "aq-cozinha",
+        "texto": "Comanda manual entregue na cozinha",
+        "nivel": 1,
+        "oportunidades": [
+          "func-kds"
+        ],
+        "ordem": 1
+      },
+      {
+        "id": "aq-cozinha-o2",
+        "pergunta_id": "aq-cozinha",
+        "texto": "Impressora de pedidos",
+        "nivel": 2,
+        "oportunidades": [
+          "func-kds"
+        ],
+        "ordem": 2
+      },
+      {
+        "id": "aq-cozinha-o3",
+        "pergunta_id": "aq-cozinha",
+        "texto": "Monitor de cozinha (KDS)",
+        "nivel": 4,
+        "oportunidades": [],
+        "ordem": 3
+      },
+      {
+        "id": "aq-delivery-o0",
+        "pergunta_id": "aq-delivery",
+        "texto": "Anotam pedidos de WhatsApp/telefone à mão",
+        "nivel": 0,
+        "oportunidades": [
+          "func-delivery",
+          "func-cardapio"
+        ],
+        "ordem": 0
+      },
+      {
+        "id": "aq-delivery-o1",
+        "pergunta_id": "aq-delivery",
+        "texto": "Recebem por apps, mas relançam manual no caixa",
+        "nivel": 1,
+        "oportunidades": [
+          "func-delivery"
+        ],
+        "ordem": 1
+      },
+      {
+        "id": "aq-delivery-o2",
+        "pergunta_id": "aq-delivery",
+        "texto": "Não fazem delivery",
+        "nivel": 2,
+        "oportunidades": [],
+        "ordem": 2
+      },
+      {
+        "id": "aq-delivery-o3",
+        "pergunta_id": "aq-delivery",
+        "texto": "Apps integrados direto ao sistema",
+        "nivel": 4,
+        "oportunidades": [],
+        "ordem": 3
+      },
+      {
+        "id": "aq-estoque-o0",
+        "pergunta_id": "aq-estoque",
+        "texto": "Não controlam / vão no olho",
+        "nivel": 0,
+        "oportunidades": [
+          "func-estoque",
+          "func-ficha"
+        ],
+        "ordem": 0
+      },
+      {
+        "id": "aq-estoque-o1",
+        "pergunta_id": "aq-estoque",
+        "texto": "Contagem manual periódica",
+        "nivel": 1,
+        "oportunidades": [
+          "func-estoque"
+        ],
+        "ordem": 1
+      },
+      {
+        "id": "aq-estoque-o2",
+        "pergunta_id": "aq-estoque",
+        "texto": "Planilha de estoque",
+        "nivel": 2,
+        "oportunidades": [
+          "func-estoque"
+        ],
+        "ordem": 2
+      },
+      {
+        "id": "aq-estoque-o3",
+        "pergunta_id": "aq-estoque",
+        "texto": "Sistema com baixa automática por venda",
+        "nivel": 4,
+        "oportunidades": [],
+        "ordem": 3
+      },
+      {
+        "id": "aq-fiscal-o0",
+        "pergunta_id": "aq-fiscal",
+        "texto": "Não emitem cupom e fecham 'de cabeça'",
+        "nivel": 0,
+        "oportunidades": [
+          "func-fiscal",
+          "func-caixa"
+        ],
+        "ordem": 0
+      },
+      {
+        "id": "aq-fiscal-o1",
+        "pergunta_id": "aq-fiscal",
+        "texto": "Fechamento manual no papel no fim do dia",
+        "nivel": 1,
+        "oportunidades": [
+          "func-caixa"
+        ],
+        "ordem": 1
+      },
+      {
+        "id": "aq-fiscal-o2",
+        "pergunta_id": "aq-fiscal",
+        "texto": "Emitem cupom à parte, no site da SEFAZ",
+        "nivel": 2,
+        "oportunidades": [
+          "func-fiscal"
+        ],
+        "ordem": 2
+      },
+      {
+        "id": "aq-fiscal-o3",
+        "pergunta_id": "aq-fiscal",
+        "texto": "Sistema emite NFC-e e concilia o caixa",
+        "nivel": 4,
+        "oportunidades": [],
+        "ordem": 3
+      },
+      {
+        "id": "aq-custo-o0",
+        "pergunta_id": "aq-custo",
+        "texto": "Não sabem o custo do prato",
+        "nivel": 0,
+        "oportunidades": [
+          "func-ficha"
+        ],
+        "ordem": 0
+      },
+      {
+        "id": "aq-custo-o1",
+        "pergunta_id": "aq-custo",
+        "texto": "Estimativa de cabeça",
+        "nivel": 1,
+        "oportunidades": [
+          "func-ficha"
+        ],
+        "ordem": 1
+      },
+      {
+        "id": "aq-custo-o2",
+        "pergunta_id": "aq-custo",
+        "texto": "Calculam numa planilha",
+        "nivel": 2,
+        "oportunidades": [],
+        "ordem": 2
+      },
+      {
+        "id": "aq-custo-o3",
+        "pergunta_id": "aq-custo",
+        "texto": "Sistema calcula por ficha técnica",
+        "nivel": 4,
+        "oportunidades": [],
+        "ordem": 3
+      }
+    ],
+    "camposEmpresa": [
+      {
+        "id": "cnpj",
+        "label": "CNPJ",
+        "tipo": "texto",
+        "opcoes": [],
+        "obrigatorio": false,
+        "ordem": 0
+      },
+      {
+        "id": "filiais",
+        "label": "Número de filiais",
+        "tipo": "numero",
+        "opcoes": [],
+        "obrigatorio": false,
+        "ordem": 1
+      },
+      {
+        "id": "regime",
+        "label": "Regime tributário",
+        "tipo": "selecao",
+        "opcoes": [
+          "Simples Nacional",
+          "Lucro Presumido",
+          "Lucro Real"
+        ],
+        "obrigatorio": false,
+        "ordem": 2
+      }
+    ]
+  },
+  "diag": {
+    "empresas": [
+      {
+        "id": "emp-lanche-do-ze",
+        "nome": "Lanchonete do Zé",
+        "dados": {
+          "cnpj": "12.345.678/0001-90",
+          "filiais": "1",
+          "regime": "Simples Nacional"
+        },
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      }
+    ],
+    "assessments": [
+      {
+        "id": "assess-demo",
+        "empresa_id": "emp-lanche-do-ze",
+        "cliente_nome": "Lanchonete do Zé",
+        "segmento_id": "seg-lanchonete",
+        "dados": {
+          "cnpj": "12.345.678/0001-90",
+          "filiais": "1",
+          "regime": "Simples Nacional"
+        },
+        "criado_em": "2026-08-06T13:10:00.000Z",
+        "status": "concluido",
+        "perguntaIds": [
+          "aq-vendas",
+          "aq-cozinha",
+          "aq-delivery",
+          "aq-estoque",
+          "aq-fiscal",
+          "aq-custo"
+        ],
+        "maturidade": 25,
+        "oportunidades": [
+          "func-pdv",
+          "func-kds",
+          "func-delivery",
+          "func-estoque",
+          "func-caixa",
+          "func-ficha"
+        ]
+      }
+    ],
+    "assessmentRespostas": [
+      {
+        "id": "ar-0",
+        "assessment_id": "assess-demo",
+        "pergunta_id": "aq-vendas",
+        "opcao_id": "aq-vendas-o1",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "ar-1",
+        "assessment_id": "assess-demo",
+        "pergunta_id": "aq-cozinha",
+        "opcao_id": "aq-cozinha-o1",
+        "criado_em": "2026-08-06T13:01:00.000Z"
+      },
+      {
+        "id": "ar-2",
+        "assessment_id": "assess-demo",
+        "pergunta_id": "aq-delivery",
+        "opcao_id": "aq-delivery-o1",
+        "criado_em": "2026-08-06T13:02:00.000Z"
+      },
+      {
+        "id": "ar-3",
+        "assessment_id": "assess-demo",
+        "pergunta_id": "aq-estoque",
+        "opcao_id": "aq-estoque-o1",
+        "criado_em": "2026-08-06T13:03:00.000Z"
+      },
+      {
+        "id": "ar-4",
+        "assessment_id": "assess-demo",
+        "pergunta_id": "aq-fiscal",
+        "opcao_id": "aq-fiscal-o1",
+        "criado_em": "2026-08-06T13:04:00.000Z"
+      },
+      {
+        "id": "ar-5",
+        "assessment_id": "assess-demo",
+        "pergunta_id": "aq-custo",
+        "opcao_id": "aq-custo-o1",
+        "criado_em": "2026-08-06T13:05:00.000Z"
+      }
+    ],
+    "diagnosticos": [
+      {
+        "id": "diag-demo",
+        "empresa_id": "emp-lanche-do-ze",
+        "cliente_nome": "Lanchonete do Zé",
+        "segmento_id": "seg-lanchonete",
+        "escopo": "completo",
+        "escopo_label": "Completo · Lanchonete / Food Service",
+        "dados": {
+          "cnpj": "12.345.678/0001-90",
+          "filiais": "1",
+          "regime": "Simples Nacional"
+        },
+        "itens": [
+          {
+            "pergunta_id": "perg-func-pdv",
+            "tipo": "tecnica"
+          },
+          {
+            "pergunta_id": "perg-func-comanda",
+            "tipo": "tecnica"
+          },
+          {
+            "pergunta_id": "perg-func-kds",
+            "tipo": "tecnica"
+          },
+          {
+            "pergunta_id": "perg-func-ficha",
+            "tipo": "tecnica"
+          },
+          {
+            "pergunta_id": "perg-func-delivery",
+            "tipo": "tecnica"
+          },
+          {
+            "pergunta_id": "perg-func-cardapio",
+            "tipo": "tecnica"
+          },
+          {
+            "pergunta_id": "perg-func-estoque",
+            "tipo": "tecnica"
+          },
+          {
+            "pergunta_id": "perg-func-fiscal",
+            "tipo": "tecnica"
+          },
+          {
+            "pergunta_id": "perg-func-caixa",
+            "tipo": "tecnica"
+          }
+        ],
+        "func_ids": [
+          "func-pdv",
+          "func-comanda",
+          "func-kds",
+          "func-ficha",
+          "func-delivery",
+          "func-cardapio",
+          "func-estoque",
+          "func-fiscal",
+          "func-caixa"
+        ],
+        "status": "concluido",
+        "criado_em": "2026-08-06T13:20:00.000Z",
+        "maturidade": 25,
+        "oportunidades": [
+          "func-pdv",
+          "func-kds",
+          "func-delivery",
+          "func-estoque",
+          "func-caixa",
+          "func-ficha"
+        ]
+      }
+    ],
+    "respostas": [
+      {
+        "id": "dr-0",
+        "diagnostico_id": "diag-demo",
+        "pergunta_id": "perg-func-pdv",
+        "opcao_id": "perg-func-pdv-o1",
+        "tipo": "tecnica",
+        "texto_outro": "",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "dr-1",
+        "diagnostico_id": "diag-demo",
+        "pergunta_id": "perg-func-comanda",
+        "opcao_id": "perg-func-comanda-o1",
+        "tipo": "tecnica",
+        "texto_outro": "",
+        "criado_em": "2026-08-06T13:01:00.000Z"
+      },
+      {
+        "id": "dr-2",
+        "diagnostico_id": "diag-demo",
+        "pergunta_id": "perg-func-kds",
+        "opcao_id": "perg-func-kds-o2",
+        "tipo": "tecnica",
+        "texto_outro": "",
+        "criado_em": "2026-08-06T13:02:00.000Z"
+      },
+      {
+        "id": "dr-3",
+        "diagnostico_id": "diag-demo",
+        "pergunta_id": "perg-func-ficha",
+        "opcao_id": "perg-func-ficha-o4",
+        "tipo": "tecnica",
+        "texto_outro": "",
+        "criado_em": "2026-08-06T13:03:00.000Z"
+      },
+      {
+        "id": "dr-4",
+        "diagnostico_id": "diag-demo",
+        "pergunta_id": "perg-func-delivery",
+        "opcao_id": "perg-func-delivery-o1",
+        "tipo": "tecnica",
+        "texto_outro": "",
+        "criado_em": "2026-08-06T13:04:00.000Z"
+      },
+      {
+        "id": "dr-5",
+        "diagnostico_id": "diag-demo",
+        "pergunta_id": "perg-func-cardapio",
+        "opcao_id": "perg-func-cardapio-o4",
+        "tipo": "tecnica",
+        "texto_outro": "Hoje a gente manda foto do cardápio no grupo de WhatsApp.",
+        "criado_em": "2026-08-06T13:05:00.000Z"
+      },
+      {
+        "id": "dr-6",
+        "diagnostico_id": "diag-demo",
+        "pergunta_id": "perg-func-estoque",
+        "opcao_id": "perg-func-estoque-o3",
+        "tipo": "tecnica",
+        "texto_outro": "",
+        "criado_em": "2026-08-06T13:06:00.000Z"
+      },
+      {
+        "id": "dr-7",
+        "diagnostico_id": "diag-demo",
+        "pergunta_id": "perg-func-fiscal",
+        "opcao_id": "perg-func-fiscal-o1",
+        "tipo": "tecnica",
+        "texto_outro": "",
+        "criado_em": "2026-08-06T13:07:00.000Z"
+      },
+      {
+        "id": "dr-8",
+        "diagnostico_id": "diag-demo",
+        "pergunta_id": "perg-func-caixa",
+        "opcao_id": "perg-func-caixa-o1",
+        "tipo": "tecnica",
+        "texto_outro": "",
+        "criado_em": "2026-08-06T13:08:00.000Z"
+      }
+    ]
+  }
+}
