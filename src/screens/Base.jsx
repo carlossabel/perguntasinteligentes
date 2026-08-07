@@ -1,6 +1,89 @@
 import { useState } from "react";
-import { Edit3, Trash2, Filter, X } from "lucide-react";
-import { VEREDITOS, SectionTitle } from "../ui.jsx";
+import { Edit3, Trash2, Filter, X, Plus, Check, ChevronUp, ChevronDown, PencilLine, Clock, User, ListTodo } from "lucide-react";
+import { VEREDITOS, SectionTitle, uid, nowISO, inputCls, btnGhost } from "../ui.jsx";
+
+const horas = (n) => `${Number(n) || 0}h`;
+
+/* Editor do catálogo de tarefas de implantação de UMA funcionalidade (base.tarefas). */
+function TarefasFunc({ base, saveBase, funcId }) {
+  const [aberto, setAberto] = useState(false);
+  const [nome, setNome] = useState("");
+  const [tempo, setTempo] = useState("");
+  const [consultor, setConsultor] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [ed, setEd] = useState({ nome: "", tempo: "", consultor: "" });
+
+  const tarefas = (base.tarefas || []).filter((t) => t.funcionalidade_id === funcId).slice().sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+  const consultores = [...new Set((base.tarefas || []).map((t) => t.consultor).filter(Boolean))];
+  const listId = "consultores-base";
+  const totalH = tarefas.reduce((a, t) => a + (Number(t.tempo) || 0), 0);
+
+  const persist = (arr) => {
+    const outras = (base.tarefas || []).filter((t) => t.funcionalidade_id !== funcId);
+    saveBase({ ...base, tarefas: [...outras, ...arr.map((t, i) => ({ ...t, ordem: i }))] });
+  };
+  const add = () => {
+    if (!nome.trim()) return;
+    persist([...tarefas, { id: uid(), funcionalidade_id: funcId, nome: nome.trim(), tempo: Number(tempo) || 0, consultor: consultor.trim(), criado_em: nowISO() }]);
+    setNome(""); setTempo(""); setConsultor("");
+  };
+  const salvarEd = () => {
+    if (!ed.nome.trim()) return;
+    persist(tarefas.map((t) => t.id === editId ? { ...t, nome: ed.nome.trim(), tempo: Number(ed.tempo) || 0, consultor: ed.consultor.trim() } : t));
+    setEditId(null);
+  };
+  const remover = (id) => persist(tarefas.filter((t) => t.id !== id));
+  const mover = (id, dir) => {
+    const i = tarefas.findIndex((t) => t.id === id);
+    const j = dir === "up" ? i - 1 : i + 1;
+    if (j < 0 || j >= tarefas.length) return;
+    const arr = [...tarefas]; [arr[i], arr[j]] = [arr[j], arr[i]]; persist(arr);
+  };
+
+  return (
+    <div className="mt-3 rounded-lg border border-slate-100 bg-white p-3">
+      <button className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-slate-500 hover:text-teal-700" onClick={() => setAberto((v) => !v)}>
+        <ListTodo className="w-3.5 h-3.5" /> Tarefas de implantação
+        <span className="text-slate-400">· {tarefas.length}{totalH ? ` · ${horas(totalH)}` : ""}</span>
+        {aberto ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+
+      {aberto && (
+        <div className="mt-2 space-y-1.5">
+          <datalist id={listId}>{consultores.map((c) => <option key={c} value={c} />)}</datalist>
+          {tarefas.map((t, i) => editId === t.id ? (
+            <div key={t.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-teal-200 px-2 py-1.5">
+              <input className={inputCls + " py-1 flex-1 min-w-[9rem]"} value={ed.nome} onChange={(e) => setEd({ ...ed, nome: e.target.value })} />
+              <input type="number" min="0" className="w-16 rounded-lg border border-slate-300 px-2 py-1 text-sm" value={ed.tempo} onChange={(e) => setEd({ ...ed, tempo: e.target.value })} />
+              <input list={listId} className="w-36 rounded-lg border border-slate-300 px-2 py-1 text-sm" value={ed.consultor} onChange={(e) => setEd({ ...ed, consultor: e.target.value })} />
+              <button className="p-1 text-teal-700" onClick={salvarEd}><Check className="w-4 h-4" /></button>
+              <button className="p-1 text-slate-400 hover:text-red-600" onClick={() => setEditId(null)}><X className="w-4 h-4" /></button>
+            </div>
+          ) : (
+            <div key={t.id} className="flex items-center gap-2 rounded-lg border border-slate-100 px-2 py-1.5">
+              <div className="flex flex-col">
+                <button className="p-0.5 text-slate-400 hover:text-teal-700 disabled:opacity-25" disabled={i === 0} onClick={() => mover(t.id, "up")}><ChevronUp className="w-4 h-4" /></button>
+                <button className="p-0.5 text-slate-400 hover:text-teal-700 disabled:opacity-25" disabled={i === tarefas.length - 1} onClick={() => mover(t.id, "down")}><ChevronDown className="w-4 h-4" /></button>
+              </div>
+              <span className="flex-1 text-sm text-slate-700">{t.nome}</span>
+              <span className="inline-flex items-center gap-1 text-xs text-slate-500 font-mono"><Clock className="w-3 h-3" />{horas(t.tempo)}</span>
+              {t.consultor && <span className="inline-flex items-center gap-1 text-xs text-slate-500 max-w-[9rem] truncate"><User className="w-3 h-3" />{t.consultor}</span>}
+              <button className="p-1 text-slate-300 hover:text-teal-700" onClick={() => { setEditId(t.id); setEd({ nome: t.nome, tempo: t.tempo ?? "", consultor: t.consultor || "" }); }}><PencilLine className="w-4 h-4" /></button>
+              <button className="p-1 text-slate-300 hover:text-red-600" onClick={() => remover(t.id)}><Trash2 className="w-4 h-4" /></button>
+            </div>
+          ))}
+          {tarefas.length === 0 && <p className="text-xs text-slate-400">Nenhuma tarefa cadastrada para esta funcionalidade.</p>}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <input className={inputCls + " py-1 flex-1 min-w-[9rem]"} placeholder="Nome da tarefa" value={nome} onChange={(e) => setNome(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+            <div className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-400" /><input type="number" min="0" className="w-16 rounded-lg border border-slate-300 px-2 py-1 text-sm" placeholder="h" value={tempo} onChange={(e) => setTempo(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} /></div>
+            <div className="flex items-center gap-1"><User className="w-3.5 h-3.5 text-slate-400" /><input list={listId} className="w-36 rounded-lg border border-slate-300 px-2 py-1 text-sm" placeholder="Consultor" value={consultor} onChange={(e) => setConsultor(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} /></div>
+            <button className={btnGhost + " py-1.5"} onClick={add}><Plus className="w-4 h-4" /> tarefa</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Base({ base, saveBase, onEdit }) {
   const segmentos = base.segmentos || [];
@@ -52,6 +135,7 @@ export default function Base({ base, saveBase, onEdit }) {
             </div>
           );
         })}
+        <TarefasFunc base={base} saveBase={saveBase} funcId={f.id} />
       </div>
     );
   };

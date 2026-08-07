@@ -918,168 +918,216 @@
       {
         "id": "tar-func-pdv-0",
         "funcionalidade_id": "func-pdv",
-        "texto": "Cadastrar produtos, preços e grupos",
+        "nome": "Cadastrar produtos, preços e grupos",
+        "tempo": 6,
+        "consultor": "Ana Duarte",
         "ordem": 0,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-pdv-1",
         "funcionalidade_id": "func-pdv",
-        "texto": "Configurar formas de pagamento e impressora do balcão",
+        "nome": "Configurar formas de pagamento e impressora do balcão",
+        "tempo": 3,
+        "consultor": "Bruno Reis",
         "ordem": 1,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-pdv-2",
         "funcionalidade_id": "func-pdv",
-        "texto": "Treinar a equipe de caixa no PDV",
+        "nome": "Treinar a equipe de caixa no PDV",
+        "tempo": 4,
+        "consultor": "Ana Duarte",
         "ordem": 2,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-comanda-0",
         "funcionalidade_id": "func-comanda",
-        "texto": "Cadastrar mesas e taxa de serviço",
+        "nome": "Cadastrar mesas e taxa de serviço",
+        "tempo": 2,
+        "consultor": "Ana Duarte",
         "ordem": 0,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-comanda-1",
         "funcionalidade_id": "func-comanda",
-        "texto": "Testar abertura e fechamento de comanda em operação",
+        "nome": "Testar abertura e fechamento de comanda em operação",
+        "tempo": 3,
+        "consultor": "Bruno Reis",
         "ordem": 1,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-kds-0",
         "funcionalidade_id": "func-kds",
-        "texto": "Instalar o monitor (tela) na cozinha",
+        "nome": "Instalar o monitor (tela) na cozinha",
+        "tempo": 2,
+        "consultor": "Bruno Reis",
         "ordem": 0,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-kds-1",
         "funcionalidade_id": "func-kds",
-        "texto": "Configurar o roteamento de itens por setor de preparo",
+        "nome": "Configurar o roteamento de itens por setor de preparo",
+        "tempo": 4,
+        "consultor": "Carla Nunes",
         "ordem": 1,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-kds-2",
         "funcionalidade_id": "func-kds",
-        "texto": "Treinar a cozinha no fluxo do KDS",
+        "nome": "Treinar a cozinha no fluxo do KDS",
+        "tempo": 3,
+        "consultor": "Carla Nunes",
         "ordem": 2,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-ficha-0",
         "funcionalidade_id": "func-ficha",
-        "texto": "Levantar receitas e insumos de cada produto",
+        "nome": "Levantar receitas e insumos de cada produto",
+        "tempo": 8,
+        "consultor": "Carla Nunes",
         "ordem": 0,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-ficha-1",
         "funcionalidade_id": "func-ficha",
-        "texto": "Cadastrar as fichas técnicas no sistema",
+        "nome": "Cadastrar as fichas técnicas no sistema",
+        "tempo": 6,
+        "consultor": "Carla Nunes",
         "ordem": 1,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-ficha-2",
         "funcionalidade_id": "func-ficha",
-        "texto": "Validar o custo e a margem calculados",
+        "nome": "Validar o custo e a margem calculados",
+        "tempo": 3,
+        "consultor": "Ana Duarte",
         "ordem": 2,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-delivery-0",
         "funcionalidade_id": "func-delivery",
-        "texto": "Contratar/ativar o integrador dos apps",
+        "nome": "Contratar/ativar o integrador dos apps",
+        "tempo": 2,
+        "consultor": "Bruno Reis",
         "ordem": 0,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-delivery-1",
         "funcionalidade_id": "func-delivery",
-        "texto": "Fazer o de-para de produtos com os apps",
+        "nome": "Fazer o de-para de produtos com os apps",
+        "tempo": 5,
+        "consultor": "Bruno Reis",
         "ordem": 1,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-delivery-2",
         "funcionalidade_id": "func-delivery",
-        "texto": "Testar um pedido de ponta a ponta",
+        "nome": "Testar um pedido de ponta a ponta",
+        "tempo": 2,
+        "consultor": "Bruno Reis",
         "ordem": 2,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-cardapio-0",
         "funcionalidade_id": "func-cardapio",
-        "texto": "Montar o cardápio digital com fotos",
+        "nome": "Montar o cardápio digital com fotos",
+        "tempo": 5,
+        "consultor": "Carla Nunes",
         "ordem": 0,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-cardapio-1",
         "funcionalidade_id": "func-cardapio",
-        "texto": "Gerar e imprimir os QR Codes das mesas",
+        "nome": "Gerar e imprimir os QR Codes das mesas",
+        "tempo": 2,
+        "consultor": "Bruno Reis",
         "ordem": 1,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-estoque-0",
         "funcionalidade_id": "func-estoque",
-        "texto": "Cadastrar insumos, unidades e estoque mínimo",
+        "nome": "Cadastrar insumos, unidades e estoque mínimo",
+        "tempo": 6,
+        "consultor": "Carla Nunes",
         "ordem": 0,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-estoque-1",
         "funcionalidade_id": "func-estoque",
-        "texto": "Fazer o inventário inicial",
+        "nome": "Fazer o inventário inicial",
+        "tempo": 5,
+        "consultor": "Ana Duarte",
         "ordem": 1,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-estoque-2",
         "funcionalidade_id": "func-estoque",
-        "texto": "Ativar a baixa automática por venda",
+        "nome": "Ativar a baixa automática por venda",
+        "tempo": 3,
+        "consultor": "Carla Nunes",
         "ordem": 2,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-fiscal-0",
         "funcionalidade_id": "func-fiscal",
-        "texto": "Instalar o certificado digital",
+        "nome": "Instalar o certificado digital",
+        "tempo": 1,
+        "consultor": "Bruno Reis",
         "ordem": 0,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-fiscal-1",
         "funcionalidade_id": "func-fiscal",
-        "texto": "Parametrizar as regras fiscais do estado",
+        "nome": "Parametrizar as regras fiscais do estado",
+        "tempo": 6,
+        "consultor": "Bruno Reis",
         "ordem": 1,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-fiscal-2",
         "funcionalidade_id": "func-fiscal",
-        "texto": "Emitir uma NFC-e de homologação",
+        "nome": "Emitir uma NFC-e de homologação",
+        "tempo": 2,
+        "consultor": "Bruno Reis",
         "ordem": 2,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-caixa-0",
         "funcionalidade_id": "func-caixa",
-        "texto": "Configurar caixas e taxas das maquininhas",
+        "nome": "Configurar caixas e taxas das maquininhas",
+        "tempo": 3,
+        "consultor": "Ana Duarte",
         "ordem": 0,
         "criado_em": "2026-08-06T13:00:00.000Z"
       },
       {
         "id": "tar-func-caixa-1",
         "funcionalidade_id": "func-caixa",
-        "texto": "Treinar o fechamento diário por forma de pagamento",
+        "nome": "Treinar o fechamento diário por forma de pagamento",
+        "tempo": 3,
+        "consultor": "Ana Duarte",
         "ordem": 1,
         "criado_em": "2026-08-06T13:00:00.000Z"
       }
@@ -1345,6 +1393,16 @@
         ],
         "ordemFuncs": {},
         "ordemTarefas": {},
+        "tarefasExtras": [
+          {
+            "id": "tarx-pdv-migra",
+            "funcionalidade_id": "func-pdv",
+            "nome": "Migrar histórico de vendas do sistema antigo",
+            "tempo": 4,
+            "consultor": "Ana Duarte",
+            "criado_em": "2026-08-06T13:00:00.000Z"
+          }
+        ],
         "feitas": {
           "tar-func-pdv-0": true,
           "tar-func-pdv-1": true,
