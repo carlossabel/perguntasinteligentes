@@ -12,7 +12,23 @@ Ela cobre os dois estágios do funil já preenchidos:
   caixa), montadas de propósito para mostrar **todos os vereditos** no relatório
   (`ok`, `atende`, `parceira`, `parcial`, `custom`, `gap`) e um "Outro" indo para a curadoria.
 
-Nada da regra do software foi alterado — é só dado.
+A base também já traz **tarefas de implantação** por funcionalidade e um **plano de projeto**
+montado para a demo (veja a aba "Plano de projeto"), com uma ordem de áreas sugerida e
+algumas tarefas já marcadas como feitas.
+
+## Aba "Plano de projeto"
+
+A partir de um relatório, agrupa as funcionalidades por **área de negócio** e lista as
+**tarefas de implantação** de cada uma. Dá para:
+
+- reordenar as **áreas de negócio** (setas ↑↓ no topo de cada área);
+- reordenar as **funcionalidades** dentro de uma área;
+- reordenar as **tarefas** dentro de uma funcionalidade;
+- adicionar/editar/remover tarefas (as tarefas ficam na base, reutilizáveis por funcionalidade);
+- marcar tarefas como feitas e acompanhar o progresso.
+
+A ordem e o progresso são guardados **por relatório** (cada cliente tem seu próprio plano);
+as tarefas em si são um catálogo por funcionalidade, reaproveitado entre os planos.
 
 ## Como ativar
 

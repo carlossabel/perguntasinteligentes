@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Sparkles, ClipboardCheck, MessageSquare, FileText, Database, Gauge, Loader2, AlertTriangle } from "lucide-react";
+import { Sparkles, ClipboardCheck, MessageSquare, FileText, Database, Gauge, ClipboardList, Loader2, AlertTriangle } from "lucide-react";
 import { getBase, putBase, getDiag, putDiag } from "./api.js";
 import Assessment from "./screens/Assessment.jsx";
 import Cadastro from "./screens/Cadastro.jsx";
@@ -7,6 +7,7 @@ import Curadoria from "./screens/Curadoria.jsx";
 import Diagnostico from "./screens/Diagnostico.jsx";
 import Relatorio from "./screens/Relatorio.jsx";
 import Base from "./screens/Base.jsx";
+import PlanoProjeto from "./screens/PlanoProjeto.jsx";
 
 const TABS = [
   { id: "assessment", label: "Cadastro de diagnóstico", icon: Gauge },
@@ -14,6 +15,7 @@ const TABS = [
   { id: "curadoria", label: "Curadoria", icon: ClipboardCheck },
   { id: "diagnostico", label: "Diagnóstico", icon: MessageSquare },
   { id: "relatorio", label: "Relatório", icon: FileText },
+  { id: "plano", label: "Plano de projeto", icon: ClipboardList },
   { id: "base", label: "Base", icon: Database },
 ];
 
@@ -89,6 +91,7 @@ export default function App() {
         {tab === "curadoria" && <Curadoria base={base} saveBase={saveBase} diag={diag} />}
         {tab === "diagnostico" && <Diagnostico base={base} diag={diag} saveDiag={saveDiag} goToReport={goToReport} />}
         {tab === "relatorio" && <Relatorio base={base} diag={diag} selectedId={reportId} setSelectedId={setReportId} />}
+        {tab === "plano" && <PlanoProjeto base={base} saveBase={saveBase} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} />}
         {tab === "base" && <Base base={base} saveBase={saveBase} onEdit={goEdit} />}
       </main>
 

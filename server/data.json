@@ -913,6 +913,176 @@
         "obrigatorio": false,
         "ordem": 2
       }
+    ],
+    "tarefas": [
+      {
+        "id": "tar-func-pdv-0",
+        "funcionalidade_id": "func-pdv",
+        "texto": "Cadastrar produtos, preços e grupos",
+        "ordem": 0,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-pdv-1",
+        "funcionalidade_id": "func-pdv",
+        "texto": "Configurar formas de pagamento e impressora do balcão",
+        "ordem": 1,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-pdv-2",
+        "funcionalidade_id": "func-pdv",
+        "texto": "Treinar a equipe de caixa no PDV",
+        "ordem": 2,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-comanda-0",
+        "funcionalidade_id": "func-comanda",
+        "texto": "Cadastrar mesas e taxa de serviço",
+        "ordem": 0,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-comanda-1",
+        "funcionalidade_id": "func-comanda",
+        "texto": "Testar abertura e fechamento de comanda em operação",
+        "ordem": 1,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-kds-0",
+        "funcionalidade_id": "func-kds",
+        "texto": "Instalar o monitor (tela) na cozinha",
+        "ordem": 0,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-kds-1",
+        "funcionalidade_id": "func-kds",
+        "texto": "Configurar o roteamento de itens por setor de preparo",
+        "ordem": 1,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-kds-2",
+        "funcionalidade_id": "func-kds",
+        "texto": "Treinar a cozinha no fluxo do KDS",
+        "ordem": 2,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-ficha-0",
+        "funcionalidade_id": "func-ficha",
+        "texto": "Levantar receitas e insumos de cada produto",
+        "ordem": 0,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-ficha-1",
+        "funcionalidade_id": "func-ficha",
+        "texto": "Cadastrar as fichas técnicas no sistema",
+        "ordem": 1,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-ficha-2",
+        "funcionalidade_id": "func-ficha",
+        "texto": "Validar o custo e a margem calculados",
+        "ordem": 2,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-delivery-0",
+        "funcionalidade_id": "func-delivery",
+        "texto": "Contratar/ativar o integrador dos apps",
+        "ordem": 0,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-delivery-1",
+        "funcionalidade_id": "func-delivery",
+        "texto": "Fazer o de-para de produtos com os apps",
+        "ordem": 1,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-delivery-2",
+        "funcionalidade_id": "func-delivery",
+        "texto": "Testar um pedido de ponta a ponta",
+        "ordem": 2,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-cardapio-0",
+        "funcionalidade_id": "func-cardapio",
+        "texto": "Montar o cardápio digital com fotos",
+        "ordem": 0,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-cardapio-1",
+        "funcionalidade_id": "func-cardapio",
+        "texto": "Gerar e imprimir os QR Codes das mesas",
+        "ordem": 1,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-estoque-0",
+        "funcionalidade_id": "func-estoque",
+        "texto": "Cadastrar insumos, unidades e estoque mínimo",
+        "ordem": 0,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-estoque-1",
+        "funcionalidade_id": "func-estoque",
+        "texto": "Fazer o inventário inicial",
+        "ordem": 1,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-estoque-2",
+        "funcionalidade_id": "func-estoque",
+        "texto": "Ativar a baixa automática por venda",
+        "ordem": 2,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-fiscal-0",
+        "funcionalidade_id": "func-fiscal",
+        "texto": "Instalar o certificado digital",
+        "ordem": 0,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-fiscal-1",
+        "funcionalidade_id": "func-fiscal",
+        "texto": "Parametrizar as regras fiscais do estado",
+        "ordem": 1,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-fiscal-2",
+        "funcionalidade_id": "func-fiscal",
+        "texto": "Emitir uma NFC-e de homologação",
+        "ordem": 2,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-caixa-0",
+        "funcionalidade_id": "func-caixa",
+        "texto": "Configurar caixas e taxas das maquininhas",
+        "ordem": 0,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      },
+      {
+        "id": "tar-func-caixa-1",
+        "funcionalidade_id": "func-caixa",
+        "texto": "Treinar o fechamento diário por forma de pagamento",
+        "ordem": 1,
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      }
     ]
   },
   "diag": {
@@ -1160,6 +1330,27 @@
         "tipo": "tecnica",
         "texto_outro": "",
         "criado_em": "2026-08-06T13:08:00.000Z"
+      }
+    ],
+    "planos": [
+      {
+        "id": "plano-demo",
+        "diagnostico_id": "diag-demo",
+        "ordemAreas": [
+          "area-vendas",
+          "area-financeiro",
+          "area-cozinha",
+          "area-estoque",
+          "area-delivery"
+        ],
+        "ordemFuncs": {},
+        "ordemTarefas": {},
+        "feitas": {
+          "tar-func-pdv-0": true,
+          "tar-func-pdv-1": true,
+          "tar-func-caixa-0": true
+        },
+        "atualizado_em": "2026-08-06T13:30:00.000Z"
       }
     ]
   }
