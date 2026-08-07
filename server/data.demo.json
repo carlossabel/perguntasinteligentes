@@ -1131,6 +1131,17 @@
         "ordem": 1,
         "criado_em": "2026-08-06T13:00:00.000Z"
       }
+    ],
+    "tarefasSugeridas": [
+      {
+        "id": "tsug-delivery-1",
+        "funcionalidade_id": "func-delivery",
+        "nome": "Configurar impressora térmica de pedidos",
+        "tempo": 2,
+        "consultor": "Bruno Reis",
+        "origem": "plano",
+        "criado_em": "2026-08-06T13:00:00.000Z"
+      }
     ]
   },
   "diag": {

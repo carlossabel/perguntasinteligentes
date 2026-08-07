@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Sparkles, Plus, Trash2, Check, X, Loader2, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
+import { Sparkles, Plus, Trash2, Check, X, Loader2, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Clock, User, ListTodo } from "lucide-react";
 import { VEREDITOS, uid, slug, nowISO, inputCls, btnTeal, btnGhost, Label, SectionTitle } from "../ui.jsx";
 import { generate } from "../api.js";
 
 export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const segmentos = base.segmentos || [];
+  const consultoresBase = [...new Set((base.tarefas || []).map((t) => t.consultor).filter(Boolean))];
   const [nome, setNome] = useState("");
   const [segmentoIds, setSegmentoIds] = useState([]);
   const [areaId, setAreaId] = useState(base.areas[0]?.id || "");
@@ -16,6 +17,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
   const [ok, setOk] = useState(false);
+  const [tarefas, setTarefas] = useState([]);
 
   useEffect(() => {
     if (!editing) return;
@@ -31,6 +33,10 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem).map((o) => ({ texto: o.texto, veredito: o.veredito })),
     }));
     setPerguntas(pg);
+    const tf = (base.tarefas || []).filter((t) => t.funcionalidade_id === f.id)
+      .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
+      .map((t) => ({ id: t.id, nome: t.nome, tempo: t.tempo ?? "", consultor: t.consultor || "" }));
+    setTarefas(tf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
 
@@ -39,7 +45,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const resetForm = () => {
     setNome(""); setCodigo(""); setNovaArea(""); setSegmentoIds([]); setShowDetalhes(false);
     setComoAtende("");
-    setPerguntas([]); setErro(""); clearEditing();
+    setPerguntas([]); setTarefas([]); setErro(""); clearEditing();
   };
 
   const handleIA = async () => {
@@ -67,6 +73,15 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const rmOpcao = (pi, oi) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: q.opcoes.filter((_, j) => j !== oi) } : q)));
   const rmPergunta = (i) => setPerguntas((p) => p.filter((_, k) => k !== i));
 
+  const addTarefa = () => setTarefas((t) => [...t, { id: uid(), nome: "", tempo: "", consultor: "" }]);
+  const updTarefa = (i, patch) => setTarefas((t) => t.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+  const rmTarefa = (i) => setTarefas((t) => t.filter((_, k) => k !== i));
+  const moveTarefa = (i, dir) => setTarefas((t) => {
+    const j = dir === "up" ? i - 1 : i + 1;
+    if (j < 0 || j >= t.length) return t;
+    const a = [...t]; [a[i], a[j]] = [a[j], a[i]]; return a;
+  });
+
   const gerarCodigoUnico = (baseCod) => {
     const existentes = new Set(base.funcionalidades.filter((f) => f.id !== editing).map((f) => f.codigo));
     let cod = baseCod || "func";
@@ -88,10 +103,10 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
 
     const cod = (editing && codigo.trim()) ? codigo.trim() : gerarCodigoUnico(slug(nome));
     const usaveis = perguntas.filter((p) => p.disposicao !== "descartar" && p.texto.trim());
-    let funcionalidades, perguntasArr, opcoesArr;
+    let funcionalidades, perguntasArr, opcoesArr, fid;
 
     if (editing) {
-      const fid = editing;
+      fid = editing;
       funcionalidades = base.funcionalidades.map((f) => f.id === fid ? { ...f, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), como_atende: comoAtende, atualizado_em: nowISO() } : f);
       const antigas = base.perguntas.filter((p) => p.funcionalidade_id === fid).map((p) => p.id);
       perguntasArr = base.perguntas.filter((p) => p.funcionalidade_id !== fid);
@@ -102,7 +117,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
         p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, ordem: idx }));
       });
     } else {
-      const fid = uid();
+      fid = uid();
       funcionalidades = [...base.funcionalidades, { id: fid, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), como_atende: comoAtende, criado_em: nowISO(), atualizado_em: nowISO() }];
       perguntasArr = [...base.perguntas];
       opcoesArr = [...base.opcoes];
@@ -112,7 +127,15 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
         p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, ordem: idx }));
       });
     }
-    saveBase({ ...base, areas, funcionalidades, perguntas: perguntasArr, opcoes: opcoesArr });
+    const outrasTarefas = (base.tarefas || []).filter((t) => t.funcionalidade_id !== fid);
+    const tarefasArr = [
+      ...outrasTarefas,
+      ...tarefas.filter((t) => (t.nome || "").trim()).map((t, i) => ({
+        id: t.id || uid(), funcionalidade_id: fid, nome: t.nome.trim(),
+        tempo: Number(t.tempo) || 0, consultor: (t.consultor || "").trim(), ordem: i, criado_em: nowISO(),
+      })),
+    ];
+    saveBase({ ...base, areas, funcionalidades, perguntas: perguntasArr, opcoes: opcoesArr, tarefas: tarefasArr });
     setOk(true); setTimeout(() => setOk(false), 2500);
     resetForm();
   };
@@ -207,6 +230,34 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
                 ))}
                 <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={() => addOpcao(pi)}><Plus className="w-3 h-3" /> opção</button>
               </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <span className="font-mono text-xs uppercase tracking-widest text-teal-700 inline-flex items-center gap-1.5"><ListTodo className="w-3.5 h-3.5" /> Tarefas de implantação</span>
+            <span className="text-xs text-slate-400 ml-2">— nome, tempo (h) e consultor responsável</span>
+          </div>
+          <button className={btnGhost} onClick={addTarefa}><Plus className="w-4 h-4" /> Tarefa</button>
+        </div>
+
+        {tarefas.length === 0 && <p className="text-sm text-slate-400 py-3 text-center">Nenhuma tarefa ainda. Elas aparecem no Plano de projeto de cada relatório que usar esta funcionalidade.</p>}
+
+        <datalist id="consultores-cadastro">{consultoresBase.map((c) => <option key={c} value={c} />)}</datalist>
+        <div className="space-y-2">
+          {tarefas.map((t, i) => (
+            <div key={t.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+              <div className="flex flex-col shrink-0">
+                <button className="p-0.5 text-slate-400 hover:text-teal-700 disabled:opacity-25" disabled={i === 0} onClick={() => moveTarefa(i, "up")}><ChevronUp className="w-4 h-4" /></button>
+                <button className="p-0.5 text-slate-400 hover:text-teal-700 disabled:opacity-25" disabled={i === tarefas.length - 1} onClick={() => moveTarefa(i, "down")}><ChevronDown className="w-4 h-4" /></button>
+              </div>
+              <input className={inputCls + " flex-1 min-w-[10rem]"} placeholder="Nome da tarefa" value={t.nome} onChange={(e) => updTarefa(i, { nome: e.target.value })} />
+              <div className="flex items-center gap-1"><Clock className="w-4 h-4 text-slate-400" /><input type="number" min="0" className="w-16 rounded-lg border border-slate-300 px-2 py-2 text-sm outline-none focus:border-teal-500" placeholder="h" value={t.tempo} onChange={(e) => updTarefa(i, { tempo: e.target.value })} /></div>
+              <div className="flex items-center gap-1"><User className="w-4 h-4 text-slate-400" /><input list="consultores-cadastro" className="w-40 rounded-lg border border-slate-300 px-2 py-2 text-sm outline-none focus:border-teal-500" placeholder="Consultor" value={t.consultor} onChange={(e) => updTarefa(i, { consultor: e.target.value })} /></div>
+              <button className="p-2 text-slate-400 hover:text-red-600" onClick={() => rmTarefa(i)}><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}
         </div>
