@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Sparkles, Plus, Trash2, Check, X, Loader2, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
-import { VEREDITOS, uid, slug, nowISO, inputCls, btnTeal, btnGhost, Label, SectionTitle } from "../ui.jsx";
+import { VEREDITOS, AREAS_CONSULTORIA, uid, slug, nowISO, inputCls, btnTeal, btnGhost, Label, SectionTitle } from "../ui.jsx";
 import { generate } from "../api.js";
 
 export default function Cadastro({ base, saveBase, editing, clearEditing }) {
@@ -12,6 +12,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const [codigo, setCodigo] = useState("");
   const [comoAtende, setComoAtende] = useState("");
   const [showDetalhes, setShowDetalhes] = useState(false);
+  const [tarefas, setTarefas] = useState([]);
   const [perguntas, setPerguntas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
@@ -26,6 +27,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
     setAreaId(f.area_id);
     setComoAtende(f.como_atende || "");
     if (f.como_atende) setShowDetalhes(true);
+    setTarefas(Array.isArray(f.tarefas) ? f.tarefas.map((t) => ({ nome: t.nome || "", horas: t.horas ?? "", area: t.area || AREAS_CONSULTORIA[0] })) : []);
     const pg = base.perguntas.filter((p) => p.funcionalidade_id === f.id).map((p) => ({
       texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar",
       opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem).map((o) => ({ texto: o.texto, veredito: o.veredito })),
@@ -39,6 +41,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const resetForm = () => {
     setNome(""); setCodigo(""); setNovaArea(""); setSegmentoIds([]); setShowDetalhes(false);
     setComoAtende("");
+    setTarefas([]);
     setPerguntas([]); setErro(""); clearEditing();
   };
 
@@ -67,6 +70,11 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const rmOpcao = (pi, oi) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: q.opcoes.filter((_, j) => j !== oi) } : q)));
   const rmPergunta = (i) => setPerguntas((p) => p.filter((_, k) => k !== i));
 
+  const addTarefa = () => setTarefas((t) => [...t, { nome: "", horas: "", area: AREAS_CONSULTORIA[0] }]);
+  const updTarefa = (i, patch) => setTarefas((t) => t.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+  const rmTarefa = (i) => setTarefas((t) => t.filter((_, k) => k !== i));
+  const totalHoras = tarefas.reduce((s, t) => s + (Number(t.horas) || 0), 0);
+
   const gerarCodigoUnico = (baseCod) => {
     const existentes = new Set(base.funcionalidades.filter((f) => f.id !== editing).map((f) => f.codigo));
     let cod = baseCod || "func";
@@ -88,11 +96,14 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
 
     const cod = (editing && codigo.trim()) ? codigo.trim() : gerarCodigoUnico(slug(nome));
     const usaveis = perguntas.filter((p) => p.disposicao !== "descartar" && p.texto.trim());
+    const tarefasLimpa = tarefas
+      .filter((t) => t.nome.trim())
+      .map((t) => ({ id: uid(), nome: t.nome.trim(), horas: Number(t.horas) || 0, area: t.area || AREAS_CONSULTORIA[0] }));
     let funcionalidades, perguntasArr, opcoesArr;
 
     if (editing) {
       const fid = editing;
-      funcionalidades = base.funcionalidades.map((f) => f.id === fid ? { ...f, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), como_atende: comoAtende, atualizado_em: nowISO() } : f);
+      funcionalidades = base.funcionalidades.map((f) => f.id === fid ? { ...f, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), como_atende: comoAtende, tarefas: tarefasLimpa, atualizado_em: nowISO() } : f);
       const antigas = base.perguntas.filter((p) => p.funcionalidade_id === fid).map((p) => p.id);
       perguntasArr = base.perguntas.filter((p) => p.funcionalidade_id !== fid);
       opcoesArr = base.opcoes.filter((o) => !antigas.includes(o.pergunta_id));
@@ -103,7 +114,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       });
     } else {
       const fid = uid();
-      funcionalidades = [...base.funcionalidades, { id: fid, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), como_atende: comoAtende, criado_em: nowISO(), atualizado_em: nowISO() }];
+      funcionalidades = [...base.funcionalidades, { id: fid, area_id: aId, segmento_ids: [...segmentoIds], codigo: cod, nome: nome.trim(), como_atende: comoAtende, tarefas: tarefasLimpa, criado_em: nowISO(), atualizado_em: nowISO() }];
       perguntasArr = [...base.perguntas];
       opcoesArr = [...base.opcoes];
       usaveis.forEach((p) => {
@@ -169,6 +180,44 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
         <Label>Como atende</Label>
         <p className="text-xs text-slate-400 mb-2">Texto que aparece no relatório <b>apenas</b> nas respostas cujo veredito for “atende” — descreve como o sistema cobre esse processo. A IA pode preencher.</p>
         <textarea className={inputCls + " resize-y"} style={{ minHeight: 80 }} value={comoAtende} onChange={(e) => setComoAtende(e.target.value)} placeholder="ex.: O sistema registra a produção em tempo real por ordem e operação, com baixa automática de insumos." />
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <span className="font-mono text-xs uppercase tracking-widest text-teal-700">Tarefas de implantação</span>
+            <span className="text-xs text-slate-400 ml-2">— passo a passo para implantar a funcionalidade</span>
+          </div>
+          <button className={btnGhost} onClick={addTarefa}><Plus className="w-4 h-4" /> Tarefa</button>
+        </div>
+
+        {tarefas.length === 0 && <p className="text-sm text-slate-400 py-3">Nenhuma tarefa ainda. Liste as etapas de implantação — cada uma com o tempo em horas e a área da consultoria responsável.</p>}
+
+        {tarefas.length > 0 && (
+          <>
+            <div className="hidden sm:grid grid-cols-[1fr,96px,200px,32px] gap-2 mt-3 mb-1 px-1">
+              <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Tarefa</span>
+              <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Horas</span>
+              <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Área da consultoria</span>
+              <span />
+            </div>
+            <div className="space-y-2">
+              {tarefas.map((t, i) => (
+                <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr,96px,200px,32px] gap-2 sm:items-center">
+                  <input className={inputCls} placeholder="ex.: Parametrizar centros de trabalho" value={t.nome} onChange={(e) => updTarefa(i, { nome: e.target.value })} />
+                  <input type="number" min="0" step="0.5" className={inputCls} placeholder="horas" value={t.horas} onChange={(e) => updTarefa(i, { horas: e.target.value })} />
+                  <select className={inputCls} value={t.area} onChange={(e) => updTarefa(i, { area: e.target.value })}>
+                    {AREAS_CONSULTORIA.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                  <button className="p-2 text-slate-400 hover:text-red-600 justify-self-end" onClick={() => rmTarefa(i)}><Trash2 className="w-4 h-4" /></button>
+                </div>
+              ))}
+            </div>
+            {totalHoras > 0 && (
+              <div className="mt-3 text-right font-mono text-xs uppercase tracking-widest text-slate-500">Total estimado: {totalHoras} h</div>
+            )}
+          </>
+        )}
       </div>
 
       <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">

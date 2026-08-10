@@ -8,7 +8,18 @@ export const VEREDITOS = {
   gap:      { label: "Não atende",          short: "Gap",      desc: "vira roadmap",              chip: "bg-red-100 text-red-700 border-red-300",             dot: "bg-red-500" },
   rever:  { label: "Rever (Outro)",    short: "Rever",  desc: "texto livre → curadoria",    chip: "bg-teal-100 text-teal-700 border-teal-300",          dot: "bg-teal-500" },
 };
-export const VEREDITO_ORDER = ["gap", "parcial", "custom", "parceira", "atende", "ok"];
+// Ordem de leitura do relatório: Rever primeiro, depois do mais crítico ao melhor.
+export const VEREDITO_ORDER = ["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"];
+
+/* ---------- Áreas da consultoria que executam as tarefas de implantação ---------- */
+export const AREAS_CONSULTORIA = [
+  "Infra",
+  "Apoio",
+  "Consultor Backoffice",
+  "Consultor Contábil",
+  "Consultor PCP",
+  "Gerente de Projetos",
+];
 
 /* ---------- Helpers ---------- */
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);

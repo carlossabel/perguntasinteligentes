@@ -18,7 +18,7 @@ const TABS = [
 ];
 
 export default function App() {
-  const [tab, setTab] = useState("cadastro");
+  const [tab, setTab] = useState("assessment");
   const [base, setBase] = useState(null);
   const [diag, setDiag] = useState(null);
   const [editingFunc, setEditingFunc] = useState(null);
@@ -88,7 +88,7 @@ export default function App() {
         {tab === "cadastro" && <Cadastro base={base} saveBase={saveBase} editing={editingFunc} clearEditing={() => setEditingFunc(null)} />}
         {tab === "curadoria" && <Curadoria base={base} saveBase={saveBase} diag={diag} />}
         {tab === "diagnostico" && <Diagnostico base={base} diag={diag} saveDiag={saveDiag} goToReport={goToReport} />}
-        {tab === "relatorio" && <Relatorio base={base} diag={diag} selectedId={reportId} setSelectedId={setReportId} />}
+        {tab === "relatorio" && <Relatorio base={base} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} />}
         {tab === "base" && <Base base={base} saveBase={saveBase} onEdit={goEdit} />}
       </main>
 

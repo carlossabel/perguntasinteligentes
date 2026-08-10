@@ -1,9 +1,9 @@
-import { useState, useMemo } from "react";
-import { FileText, Copy, Check } from "lucide-react";
-import { VEREDITOS, VEREDITO_ORDER, fmtDate, btnGhost, VeredictoChip, Field, Label, Empty, SectionTitle } from "../ui.jsx";
+import { useState, useEffect, useMemo } from "react";
+import { FileText, Copy, Check, Edit3, Save, RotateCcw, Clock } from "lucide-react";
+import { VEREDITOS, VEREDITO_ORDER, fmtDate, btnTeal, btnGhost, VeredictoChip, Field, Label, Empty, SectionTitle } from "../ui.jsx";
 
-// Ordem de leitura comercial: começa pelo que atendemos (confiança), termina no gap (honestidade).
-const ORDEM_VENDA = ["atende", "ok", "parceira", "parcial", "custom", "gap"];
+// Ordem das linhas técnicas: do mais crítico ao melhor. "Rever" aparece antes, em bloco próprio.
+const ORDEM_TECNICA = ["gap", "custom", "parcial", "parceira", "atende", "ok"];
 
 // Lado "Como podemos atender" — tom consultivo por veredito.
 function comoAtendemos(it) {
@@ -18,8 +18,10 @@ function comoAtendemos(it) {
   }
 }
 
-export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
+export default function Relatorio({ base, diag, saveDiag, selectedId, setSelectedId }) {
   const [copied, setCopied] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [draft, setDraft] = useState(null);
   const diags = [...diag.diagnosticos].filter((x) => x.status !== "em_andamento").reverse();
   const d = diag.diagnosticos.find((x) => x.id === selectedId) || diags[0];
   const areaNome = (id) => base.areas.find((a) => a.id === id)?.nome || "—";
@@ -60,9 +62,11 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
     return { pct, faixa, avaliados, partes };
   }, [dados]);
 
+  useEffect(() => { setEditMode(false); setDraft(null); }, [d?.id]);
+
   if (!d) return <div className="max-w-3xl mx-auto"><Empty icon={FileText} title="Nenhum diagnóstico ainda" hint="Rode um diagnóstico no bot para gerar o relatório." /></div>;
 
-  const linhas = dados ? dados.itens.filter((it) => it.veredito !== "rever").slice().sort((a, b) => ORDEM_VENDA.indexOf(a.veredito) - ORDEM_VENDA.indexOf(b.veredito)) : [];
+  const linhas = dados ? dados.itens.filter((it) => it.veredito !== "rever").slice().sort((a, b) => ORDEM_TECNICA.indexOf(a.veredito) - ORDEM_TECNICA.indexOf(b.veredito)) : [];
 
   // Dados da empresa (snapshot do diagnóstico, com fallback na empresa vinculada)
   const dadosEmpresa = (d && (d.dados || (diag.empresas || []).find((e) => e.id === d.empresa_id)?.dados)) || {};
@@ -106,24 +110,65 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
     return s;
   })();
 
+  // ----- Edições manuais do relatório (persistidas no diagnóstico) -----
+  const edits = d?.edits || {};
+  const sinteseView = edits.sintese ?? sintese;
+  const obsView = edits.obs ?? "";
+  const atendeView = (it) => edits.linhas?.[it?.r?.id]?.atende ?? comoAtendemos(it);
+  const temEdicoes = !!(edits.sintese || edits.obs || (edits.linhas && Object.keys(edits.linhas).length));
+
+  const entrarEdicao = () => { setDraft({ sintese: edits.sintese ?? sintese, obs: edits.obs ?? "", linhas: { ...(edits.linhas || {}) } }); setEditMode(true); };
+  const cancelarEdicao = () => { setDraft(null); setEditMode(false); };
+  const setLinhaDraft = (rid, val) => setDraft((dr) => ({ ...dr, linhas: { ...dr.linhas, [rid]: { ...(dr.linhas?.[rid] || {}), atende: val } } }));
+  const salvarEdicoes = () => {
+    const clean = {
+      sintese: (draft.sintese ?? "").trim() ? draft.sintese : undefined,
+      obs: (draft.obs ?? "").trim() ? draft.obs : undefined,
+      linhas: draft.linhas,
+    };
+    saveDiag && saveDiag({ ...diag, diagnosticos: diag.diagnosticos.map((x) => (x.id === d.id ? { ...x, edits: clean } : x)) });
+    setEditMode(false); setDraft(null);
+  };
+  const restaurar = () => {
+    if (!confirm("Descartar as edições e voltar ao texto gerado automaticamente?")) return;
+    saveDiag && saveDiag({ ...diag, diagnosticos: diag.diagnosticos.map((x) => (x.id === d.id ? { ...x, edits: undefined } : x)) });
+    setEditMode(false); setDraft(null);
+  };
+
+  // ----- Plano de implantação (tarefas cadastradas na funcionalidade) -----
+  const tarefasDe = (f) => (f?.tarefas || []);
+  const horasFunc = (f) => tarefasDe(f).reduce((s, t) => s + (Number(t.horas) || 0), 0);
+  const funcsNoRelatorio = [...new Map(linhas.map((it) => [it.f?.id, it.f]).filter(([id]) => id)).values()];
+  const horasTotais = funcsNoRelatorio.reduce((s, f) => s + horasFunc(f), 0);
+
   const copiar = () => {
     let t = `RELATÓRIO DE ADERÊNCIA\nCliente: ${d.cliente_nome}\nEscopo: ${escopoLabel(d)}\nData: ${fmtDate(d.criado_em)}\n\n`;
     t += `DADOS DA EMPRESA\n  Nome: ${d.cliente_nome}\n`;
     campos.forEach((c) => (t += `  ${c.label}: ${dadosEmpresa[c.id]}\n`));
     t += `\n`;
-    t += sintese + "\n";
+    t += sinteseView + "\n";
+    if (horasTotais > 0) t += `Esforço de implantação estimado: ${horasTotais} h\n`;
     if (matFaixa) t += `Maturidade do negócio: ${matFaixa.l} (${maturidade}/100)\n`;
     if (oportunidades.length) {
       t += `\nOPORTUNIDADES LEVANTADAS (perguntas iniciais)${d.maturidade != null ? ` · maturidade ${d.maturidade}/100` : ""}\n`;
       oportunidades.forEach((fid) => (t += `  • ${funcNome(fid)} — ${cruzamentoLabel(vereditoPorFunc[fid])}\n`));
     }
-    t += `\nResumo: atende ${dados.contagem.atende} · parceira ${dados.contagem.parceira} · parcial ${dados.contagem.parcial} · customização ${dados.contagem.custom} · não atende ${dados.contagem.gap} · já ok ${dados.contagem.ok}\n`;
+    t += `\nResumo: rever ${dados.contagem.rever} · não atende ${dados.contagem.gap} · customização ${dados.contagem.custom} · parcial ${dados.contagem.parcial} · parceira ${dados.contagem.parceira} · atende ${dados.contagem.atende} · já ok ${dados.contagem.ok}\n`;
+    if (dados.outros.length) {
+      t += `\n— REVER (Outro) → volta para curadoria —\n`;
+      dados.outros.forEach((it) => (t += `\n• ${it.f?.nome} [Rever]\n  Hoje: ${it.p?.texto} → Outro: ${it.r.texto_outro}\n`));
+    }
     t += `\n— COMO É HOJE  →  COMO PODEMOS ATENDER —\n`;
     linhas.forEach((it) => {
       const hoje = it.r?.texto_outro ? `Outro: ${it.r.texto_outro}` : it.o?.texto;
-      t += `\n• ${it.f?.nome} [${VEREDITOS[it.veredito].short}]\n  Hoje: ${it.p?.texto} → ${hoje}\n  Atendemos: ${comoAtendemos(it)}\n`;
+      t += `\n• ${it.f?.nome} [${VEREDITOS[it.veredito].short}]\n  Hoje: ${it.p?.texto} → ${hoje}\n  Atendemos: ${atendeView(it)}\n`;
+      const tks = tarefasDe(it.f);
+      if (tks.length) {
+        t += `  Plano de implantação (${horasFunc(it.f)} h):\n`;
+        tks.forEach((tk) => (t += `    - ${tk.nome} · ${tk.horas} h · ${tk.area}\n`));
+      }
     });
-    if (dados.outros.length) { t += `\n== VOLTA PARA CURADORIA (Outros) ==\n`; dados.outros.forEach((it) => (t += `• ${it.f?.nome}: ${it.r.texto_outro}\n`)); }
+    if (obsView.trim()) t += `\nOBSERVAÇÕES\n${obsView}\n`;
     navigator.clipboard?.writeText(t).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
@@ -137,9 +182,24 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
               {diags.map((x) => <option key={x.id} value={x.id}>{x.cliente_nome} · {fmtDate(x.criado_em)}</option>)}
             </select>
           )}
-          <button className={btnGhost} onClick={copiar}>{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}{copied ? "Copiado" : "Copiar"}</button>
+          {!editMode ? (
+            <button className={btnGhost} onClick={entrarEdicao}><Edit3 className="w-4 h-4" /> Editar</button>
+          ) : (
+            <>
+              <button className={btnGhost} onClick={cancelarEdicao}>Cancelar</button>
+              <button className={btnTeal} onClick={salvarEdicoes}><Save className="w-4 h-4" /> Salvar</button>
+            </>
+          )}
+          {!editMode && temEdicoes && <button className={btnGhost} onClick={restaurar}><RotateCcw className="w-4 h-4" /> Restaurar</button>}
+          <button className={btnGhost} onClick={copiar} disabled={editMode}>{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}{copied ? "Copiado" : "Copiar"}</button>
         </div>
       </div>
+
+      {temEdicoes && !editMode && (
+        <div className="mb-4 rounded-lg bg-teal-50 border border-teal-200 px-3 py-2 text-xs text-teal-800 flex items-center gap-2">
+          <Edit3 className="w-3.5 h-3.5" /> Este relatório tem ajustes manuais. Use “Restaurar” para voltar ao texto gerado.
+        </div>
+      )}
 
       {risco && (
         <div className={`rounded-xl border p-4 mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 ${risco.faixa === "Alto" ? "bg-red-50 border-red-300" : risco.faixa === "Médio" ? "bg-amber-50 border-amber-300" : "bg-emerald-50 border-emerald-300"}`}>
@@ -177,7 +237,19 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
         </div>
       </div>
 
-      {sintese && <p className="text-sm text-slate-600 mb-5 leading-relaxed">{sintese}</p>}
+      <div className="mb-5">
+        {editMode ? (
+          <>
+            <Label>Síntese</Label>
+            <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 resize-y" style={{ minHeight: 72 }} value={draft.sintese} onChange={(e) => setDraft((dr) => ({ ...dr, sintese: e.target.value }))} />
+          </>
+        ) : (
+          sinteseView && <p className="text-sm text-slate-600 leading-relaxed">{sinteseView}</p>
+        )}
+        {horasTotais > 0 && (
+          <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest text-slate-500"><Clock className="w-3.5 h-3.5" /> Esforço de implantação estimado: {horasTotais} h</p>
+        )}
+      </div>
 
       {oportunidades.length > 0 && (
         <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4 mb-6">
@@ -201,7 +273,7 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-        {["gap", "parcial", "custom", "parceira", "atende", "ok"].map((v) => (
+        {["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].map((v) => (
           <div key={v} className={`rounded-xl border p-4 ${VEREDITOS[v].chip}`}>
             <div className="text-3xl font-semibold">{dados.contagem[v] || 0}</div>
             <div className="font-mono text-xs uppercase tracking-wider mt-1">{VEREDITOS[v].label}</div>
@@ -210,11 +282,23 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
       </div>
 
       <div className="space-y-3">
+        {dados.outros.length > 0 && (
+          <div className="mb-1">
+            <div className="flex items-center gap-2 mb-3"><VeredictoChip v="rever" size="lg" /><span className="text-sm text-slate-400">respostas em texto livre → voltam para a curadoria</span></div>
+            <div className="rounded-2xl border border-teal-200 bg-teal-50 p-5 space-y-2">
+              {dados.outros.map((it, i) => (
+                <div key={i} className="text-sm"><span className="font-medium text-slate-700">{it.f?.nome}:</span> <span className="text-slate-600">{it.r.texto_outro}</span></div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {linhas.map((it, i) => (
           <div key={i} className="rounded-xl border border-slate-200 overflow-hidden bg-white">
             <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100">
               <VeredictoChip v={it.veredito} />
               <span className="font-semibold text-slate-900">{it.f?.nome}</span>
+              {horasFunc(it.f) > 0 && <span className="ml-auto inline-flex items-center gap-1 font-mono text-[11px] text-slate-400"><Clock className="w-3 h-3" />{horasFunc(it.f)} h</span>}
             </div>
             <div className="grid sm:grid-cols-2">
               <div className="p-4 bg-slate-50/60 sm:border-r border-slate-100">
@@ -224,23 +308,41 @@ export default function Relatorio({ base, diag, selectedId, setSelectedId }) {
               </div>
               <div className="p-4">
                 <div className="font-mono text-[11px] uppercase tracking-widest text-teal-600 mb-1">Como podemos atender</div>
-                <div className="text-sm text-slate-700">{comoAtendemos(it)}</div>
+                {editMode ? (
+                  <textarea className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 resize-y" style={{ minHeight: 60 }} value={draft.linhas?.[it.r.id]?.atende ?? comoAtendemos(it)} onChange={(e) => setLinhaDraft(it.r.id, e.target.value)} />
+                ) : (
+                  <div className="text-sm text-slate-700">{atendeView(it)}</div>
+                )}
+                {tarefasDe(it.f).length > 0 && (
+                  <div className="mt-3 border-t border-slate-100 pt-2">
+                    <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-1.5"><Clock className="w-3 h-3" /> Plano de implantação · {horasFunc(it.f)} h</div>
+                    <ul className="space-y-1">
+                      {tarefasDe(it.f).map((tk) => (
+                        <li key={tk.id} className="flex items-center gap-2 text-xs text-slate-600">
+                          <span className="flex-1">{tk.nome}</span>
+                          <span className="font-mono text-slate-400 whitespace-nowrap">{tk.horas} h</span>
+                          <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500 whitespace-nowrap">{tk.area}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         ))}
-
-        {dados.outros.length > 0 && (
-          <div className="pt-3">
-            <div className="flex items-center gap-2 mb-3"><VeredictoChip v="rever" size="lg" /><span className="text-sm text-slate-400">respostas em texto livre → voltam para a curadoria</span></div>
-            <div className="rounded-2xl border border-teal-200 bg-teal-50 p-5 space-y-2">
-              {dados.outros.map((it, i) => (
-                <div key={i} className="text-sm"><span className="font-medium text-slate-700">{it.f?.nome}:</span> <span className="text-slate-600">{it.r.texto_outro}</span></div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+
+      {(editMode || obsView.trim()) && (
+        <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-1">Observações do consultor</div>
+          {editMode ? (
+            <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 resize-y" style={{ minHeight: 72 }} value={draft.obs} onChange={(e) => setDraft((dr) => ({ ...dr, obs: e.target.value }))} placeholder="Notas livres que entram no relatório e na cópia." />
+          ) : (
+            <p className="text-sm text-slate-700 whitespace-pre-wrap">{obsView}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
