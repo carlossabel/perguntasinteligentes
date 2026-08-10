@@ -34,9 +34,8 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
   const [copied, setCopied] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [draft, setDraft] = useState(null);
-  const [notaEdit, setNotaEdit] = useState(null);
-  const [notaTxt, setNotaTxt] = useState("");
-  const [addOpen, setAddOpen] = useState(false);
+  const [lineEdit, setLineEdit] = useState(null);
+  const [lineDraft, setLineDraft] = useState(null);
   const diags = [...diag.diagnosticos].filter((x) => x.status !== "em_andamento").reverse();
   const d = diag.diagnosticos.find((x) => x.id === selectedId) || diags[0];
   const areaNome = (id) => base.areas.find((a) => a.id === id)?.nome || "—";
@@ -77,7 +76,7 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
     return { pct, faixa, avaliados, partes };
   }, [dados]);
 
-  useEffect(() => { setEditMode(false); setDraft(null); setNotaEdit(null); setAddOpen(false); }, [d?.id]);
+  useEffect(() => { setEditMode(false); setDraft(null); setLineEdit(null); setLineDraft(null); }, [d?.id]);
 
   if (!d) return <div className="max-w-3xl mx-auto"><Empty icon={FileText} title="Nenhum diagnóstico ainda" hint="Rode um diagnóstico no bot para gerar o relatório." /></div>;
 
@@ -97,13 +96,22 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
   const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
   const notas = d?.notasVeredito || {};
   const patchDiag = (patch) => saveDiag && saveDiag({ ...diag, diagnosticos: diag.diagnosticos.map((x) => x.id === d.id ? { ...x, ...patch } : x) });
-  const salvarNota = (v, txt) => patchDiag({ notasVeredito: { ...notas, [v]: txt.trim() ? txt.trim() : undefined } });
-  const salvarNotaCard = (card, txt) => {
-    if (card.manual) patchDiag({ cardsExtra: (d.cardsExtra || []).map((c) => c.id === card.id ? { ...c, nota: txt.trim() ? txt.trim() : undefined } : c) });
-    else salvarNota(card.veredito, txt);
+  const linhaEdits = d?.linhaEdits || {};
+  const linhasExtra = d?.linhasExtra || [];
+  const abrirLinha = (card) => { setLineDraft({ veredito: card.veredito, titulo: card.titulo, hoje: card.hojeResposta, atende: card.atende, nota: card.nota || "" }); setLineEdit(card.key); };
+  const cancelarLinha = () => { setLineEdit(null); setLineDraft(null); };
+  const salvarLinha = (card) => {
+    if (card.manual) patchDiag({ linhasExtra: linhasExtra.map((c) => c.id === card.id ? { ...c, veredito: lineDraft.veredito, titulo: lineDraft.titulo, hoje: lineDraft.hoje, atende: lineDraft.atende, nota: lineDraft.nota.trim() || undefined } : c) });
+    else patchDiag({ linhaEdits: { ...linhaEdits, [card.key]: { veredito: lineDraft.veredito, hoje: lineDraft.hoje, atende: lineDraft.atende, nota: lineDraft.nota.trim() || undefined } } });
+    setLineEdit(null); setLineDraft(null);
   };
-  const addCardExtra = (v) => patchDiag({ cardsExtra: [...(d.cardsExtra || []), { id: uid(), veredito: v }] });
-  const removerCardExtra = (id) => patchDiag({ cardsExtra: (d.cardsExtra || []).filter((c) => c.id !== id) });
+  const addLinhaExtra = () => {
+    const id = uid();
+    patchDiag({ linhasExtra: [...linhasExtra, { id, veredito: "gap", titulo: "", hoje: "", atende: "", nota: "" }] });
+    setLineDraft({ veredito: "gap", titulo: "", hoje: "", atende: "", nota: "" });
+    setLineEdit("x:" + id);
+  };
+  const removerLinhaExtra = (id) => { patchDiag({ linhasExtra: linhasExtra.filter((c) => c.id !== id) }); if (lineEdit === "x:" + id) { setLineEdit(null); setLineDraft(null); } };
   const anexosIniciais = (diag.respostas || [])
     .filter((r) => r.diagnostico_id === d.id && r.tipo === "inicial" && r.anexos && r.anexos.length)
     .map((r) => ({ id: r.id, pergunta: (base.assessmentPerguntas || []).find((x) => x.id === r.pergunta_id)?.texto || "Pergunta inicial", anexos: r.anexos }));
@@ -259,50 +267,13 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-4 mb-4 items-start">
-        {[
-          ...["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].map((v) => ({ key: "auto:" + v, veredito: v, count: dados.contagem[v] || 0, nota: notas[v], manual: false })),
-          ...((d?.cardsExtra || []).map((c) => ({ key: "extra:" + c.id, id: c.id, veredito: c.veredito, count: dados.contagem[c.veredito] || 0, nota: c.nota, manual: true }))),
-        ].map((card) => (
-          <div key={card.key} className="flex flex-col">
-            <div className={`rounded-xl border p-4 relative ${VEREDITOS[card.veredito].chip}`}>
-              {card.manual && <button onClick={() => removerCardExtra(card.id)} className="absolute top-1.5 right-1.5 opacity-60 hover:opacity-100" title="Remover card"><X className="w-3.5 h-3.5" /></button>}
-              <div className="text-3xl font-semibold">{card.count}</div>
-              <div className="font-mono text-xs uppercase tracking-wider mt-1">{VEREDITOS[card.veredito].label}</div>
-            </div>
-            <div className="mt-1.5">
-              {notaEdit === card.key ? (
-                <div>
-                  <textarea autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 outline-none resize-y" style={{ minHeight: 46 }} value={notaTxt} onChange={(e) => setNotaTxt(e.target.value)} placeholder="Nota deste card…" />
-                  <div className="flex gap-2 mt-1">
-                    <button className="text-[11px] font-medium rounded bg-teal-700 text-white px-2 py-0.5" onClick={() => { salvarNotaCard(card, notaTxt); setNotaEdit(null); }}>Salvar</button>
-                    <button className="text-[11px] text-slate-500 px-1" onClick={() => setNotaEdit(null)}>cancelar</button>
-                  </div>
-                </div>
-              ) : card.nota ? (
-                <div className="text-xs text-slate-600 whitespace-pre-wrap bg-white border border-slate-200 rounded-lg px-2 py-1.5 cursor-pointer hover:border-teal-300" onClick={() => { setNotaEdit(card.key); setNotaTxt(card.nota); }} title="Editar nota">{card.nota}</div>
-              ) : (
-                <button className="text-[11px] font-mono uppercase tracking-wider text-slate-400 hover:text-teal-700 inline-flex items-center gap-1" onClick={() => { setNotaEdit(card.key); setNotaTxt(""); }}><Plus className="w-3 h-3" /> nota</button>
-              )}
-            </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+        {["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].map((v) => (
+          <div key={v} className={`rounded-xl border p-4 ${VEREDITOS[v].chip}`}>
+            <div className="text-3xl font-semibold">{dados.contagem[v] || 0}</div>
+            <div className="font-mono text-xs uppercase tracking-wider mt-1">{VEREDITOS[v].label}</div>
           </div>
         ))}
-      </div>
-
-      <div className="mb-6">
-        {!addOpen ? (
-          <button className={btnGhost} onClick={() => setAddOpen(true)}><Plus className="w-4 h-4" /> Adicionar card</button>
-        ) : (
-          <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2">Novo card — escolha o tipo</div>
-            <div className="flex flex-wrap gap-2 items-center">
-              {["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].map((v) => (
-                <button key={v} onClick={() => { addCardExtra(v); setAddOpen(false); }} className={`text-xs font-mono uppercase tracking-wider rounded-full px-3 py-1.5 border ${VEREDITOS[v].chip} hover:opacity-80`}>{VEREDITOS[v].label}</button>
-              ))}
-              <button onClick={() => setAddOpen(false)} className="text-xs text-slate-400 px-2 hover:text-slate-600">cancelar</button>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="space-y-3">
@@ -320,41 +291,116 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
           </div>
         )}
 
-        {linhas.map((it, i) => (
-          <div key={i} className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+        {[
+          ...linhas.map((it) => {
+            const e = linhaEdits[it.r.id] || {};
+            return {
+              key: it.r.id, manual: false, it, f: it.f, anexos: it.r?.anexos,
+              veredito: e.veredito || it.veredito,
+              titulo: it.f?.nome || "—",
+              hojePergunta: it.p?.texto || "",
+              hojeResposta: e.hoje != null ? e.hoje : (it.r?.texto_outro ? `Outro: ${it.r.texto_outro}` : it.o?.texto || ""),
+              atende: e.atende != null ? e.atende : atendeView(it),
+              nota: e.nota,
+            };
+          }),
+          ...linhasExtra.map((c) => ({
+            key: "x:" + c.id, manual: true, id: c.id,
+            veredito: c.veredito || "gap",
+            titulo: c.titulo || "(sem título)",
+            hojePergunta: "",
+            hojeResposta: c.hoje || "",
+            atende: c.atende || "",
+            nota: c.nota,
+          })),
+        ].sort((a, b) => ORDEM_TECNICA.indexOf(a.veredito) - ORDEM_TECNICA.indexOf(b.veredito)).map((card) => (
+          <div key={card.key} className="rounded-xl border border-slate-200 overflow-hidden bg-white">
             <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100">
-              <VeredictoChip v={it.veredito} />
-              <span className="font-semibold text-slate-900">{it.f?.nome}</span>
-              {horasFunc(it.f) > 0 && <span className="ml-auto inline-flex items-center gap-1 font-mono text-[11px] text-slate-400"><Clock className="w-3 h-3" />{horasFunc(it.f)} h</span>}
-            </div>
-            <div className="grid sm:grid-cols-2">
-              <div className="p-4 bg-slate-50/60 sm:border-r border-slate-100">
-                <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-1">Como é hoje</div>
-                <div className="text-sm text-slate-500">{it.p?.texto}</div>
-                <div className="text-sm text-slate-800 font-medium mt-1">{it.r?.texto_outro ? `Outro: ${it.r.texto_outro}` : it.o?.texto}</div>
-                <Anexos lista={it.r?.anexos} />
+              <VeredictoChip v={card.veredito} />
+              <span className="font-semibold text-slate-900">{card.titulo}</span>
+              {card.manual && <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 border border-slate-200 rounded px-1.5 py-0.5">manual</span>}
+              <div className="ml-auto flex items-center gap-2">
+                {!card.manual && card.f && horasFunc(card.f) > 0 && <span className="inline-flex items-center gap-1 font-mono text-[11px] text-slate-400"><Clock className="w-3 h-3" />{horasFunc(card.f)} h</span>}
+                {lineEdit !== card.key && <button onClick={() => abrirLinha(card)} className="text-slate-300 hover:text-teal-600" title="Editar card"><Pencil className="w-4 h-4" /></button>}
+                {card.manual && <button onClick={() => removerLinhaExtra(card.id)} className="text-slate-300 hover:text-red-600" title="Remover card"><X className="w-4 h-4" /></button>}
               </div>
-              <div className="p-4">
-                <div className="font-mono text-[11px] uppercase tracking-widest text-teal-600 mb-1">Como podemos atender</div>
-                <div className="text-sm text-slate-700">{atendeView(it)}</div>
-                {tarefasDe(it.f).length > 0 && (
-                  <div className="mt-3 border-t border-slate-100 pt-2">
-                    <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-1.5"><Clock className="w-3 h-3" /> Plano de implantação · {horasFunc(it.f)} h</div>
-                    <ul className="space-y-1">
-                      {tarefasDe(it.f).map((tk) => (
-                        <li key={tk.id} className="flex items-center gap-2 text-xs text-slate-600">
-                          <span className="flex-1">{tk.nome}</span>
-                          <span className="font-mono text-slate-400 whitespace-nowrap">{tk.horas} h</span>
-                          <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500 whitespace-nowrap">{tk.area}</span>
-                        </li>
-                      ))}
-                    </ul>
+            </div>
+
+            {lineEdit === card.key ? (
+              <div className="p-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Tipo</span>
+                  <select value={lineDraft.veredito} onChange={(e) => setLineDraft((d) => ({ ...d, veredito: e.target.value }))} className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-mono outline-none focus:border-teal-500">
+                    {["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].map((v) => <option key={v} value={v}>{VEREDITOS[v].label}</option>)}
+                  </select>
+                </div>
+                {card.manual && (
+                  <div>
+                    <Label>Título (funcionalidade / assunto)</Label>
+                    <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500" value={lineDraft.titulo} onChange={(e) => setLineDraft((d) => ({ ...d, titulo: e.target.value }))} placeholder="ex.: Integração com balança" />
                   </div>
                 )}
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label>Como é hoje</Label>
+                    <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500 resize-y" style={{ minHeight: 70 }} value={lineDraft.hoje} onChange={(e) => setLineDraft((d) => ({ ...d, hoje: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label>Como podemos atender</Label>
+                    <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500 resize-y" style={{ minHeight: 70 }} value={lineDraft.atende} onChange={(e) => setLineDraft((d) => ({ ...d, atende: e.target.value }))} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Nota</Label>
+                  <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500 resize-y" style={{ minHeight: 48 }} value={lineDraft.nota} onChange={(e) => setLineDraft((d) => ({ ...d, nota: e.target.value }))} placeholder="Observação sobre este ponto…" />
+                </div>
+                <div className="flex gap-2">
+                  <button className={btnTeal} onClick={() => salvarLinha(card)}><Save className="w-4 h-4" /> Salvar</button>
+                  <button className={btnGhost} onClick={cancelarLinha}>Cancelar</button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="grid sm:grid-cols-2">
+                  <div className="p-4 bg-slate-50/60 sm:border-r border-slate-100">
+                    <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-1">Como é hoje</div>
+                    {!card.manual && card.hojePergunta && <div className="text-sm text-slate-500">{card.hojePergunta}</div>}
+                    <div className="text-sm text-slate-800 font-medium mt-1 whitespace-pre-wrap">{card.hojeResposta}</div>
+                    {!card.manual && <Anexos lista={card.anexos} />}
+                  </div>
+                  <div className="p-4">
+                    <div className="font-mono text-[11px] uppercase tracking-widest text-teal-600 mb-1">Como podemos atender</div>
+                    <div className="text-sm text-slate-700 whitespace-pre-wrap">{card.atende}</div>
+                    {!card.manual && card.f && tarefasDe(card.f).length > 0 && (
+                      <div className="mt-3 border-t border-slate-100 pt-2">
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-1.5"><Clock className="w-3 h-3" /> Plano de implantação · {horasFunc(card.f)} h</div>
+                        <ul className="space-y-1">
+                          {tarefasDe(card.f).map((tk) => (
+                            <li key={tk.id} className="flex items-center gap-2 text-xs text-slate-600">
+                              <span className="flex-1">{tk.nome}</span>
+                              <span className="font-mono text-slate-400 whitespace-nowrap">{tk.horas} h</span>
+                              <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500 whitespace-nowrap">{tk.area}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {card.nota ? (
+                  <div className="px-4 py-2 border-t border-slate-100 bg-amber-50/50">
+                    <span className="font-mono text-[10px] uppercase tracking-widest text-amber-700 mr-2">Nota</span>
+                    <span className="text-sm text-slate-700 whitespace-pre-wrap">{card.nota}</span>
+                  </div>
+                ) : (
+                  <button onClick={() => abrirLinha(card)} className="w-full text-left px-4 py-1.5 border-t border-slate-100 text-[11px] font-mono uppercase tracking-wider text-slate-400 hover:text-teal-700 inline-flex items-center gap-1"><Plus className="w-3 h-3" /> nota</button>
+                )}
+              </>
+            )}
           </div>
         ))}
+
+        <button className={btnGhost} onClick={addLinhaExtra}><Plus className="w-4 h-4" /> Adicionar card — ponto não coberto pelas perguntas</button>
       </div>
 
       {obsView.trim() && (
