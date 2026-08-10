@@ -360,13 +360,8 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport, openId, 
         </div>
         <div className="flex items-center gap-3">
           {!emRevisao && novasDisponiveis > 0 && <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={incluirNovas}><Plus className="w-3 h-3" /> incluir {novasDisponiveis} nova{novasDisponiveis > 1 ? "s" : ""}</button>}
-          {emRevisao ? (
+          {emRevisao && (
             <button className={btnTeal + " !py-1.5"} onClick={() => { const id = sessao.id; setActiveId(null); goToReport(id); }}><FileText className="w-4 h-4" /> Voltar ao relatório</button>
-          ) : (
-            <>
-              <button className={btnGhost} onClick={() => setActiveId(null)} title="Sai e mantém salvo para continuar depois"><Pause className="w-4 h-4" /> Pausar</button>
-              <button className="text-xs text-slate-400 hover:text-red-600 inline-flex items-center gap-1" onClick={() => descartar(sessao)}><X className="w-3 h-3" /> descartar</button>
-            </>
           )}
         </div>
       </div>
@@ -449,22 +444,14 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport, openId, 
           <div className="space-y-3 pt-1">
             <div className="text-sm text-slate-800 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs font-medium">{pergunta.texto}<span className="block text-xs font-normal text-slate-400 mt-0.5">{faseAtual}</span></div>
             {!outroAberto ? (
-              <>
-                <div className="grid gap-2">
-                  {pergunta.opcoes.map((o) => (
-                    <button key={o.id} onClick={() => escolher(o)} className="text-left text-sm rounded-xl border border-slate-300 px-4 py-2.5 hover:border-teal-500 hover:bg-teal-50 transition flex items-center justify-between group">
-                      <span className="text-slate-700">{o.texto}</span>
-                      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-600" />
-                    </button>
-                  ))}
-                </div>
-                <div className="flex justify-end pt-1">
-                  <button onClick={pular} title="Deixa pendente e vai para a próxima; você responde depois"
-                    className="text-xs text-slate-400 hover:text-teal-700 inline-flex items-center gap-1">
-                    <SkipForward className="w-3.5 h-3.5" /> Pular por ora (responder depois)
+              <div className="grid gap-2">
+                {pergunta.opcoes.map((o) => (
+                  <button key={o.id} onClick={() => escolher(o)} className="text-left text-sm rounded-xl border border-slate-300 px-4 py-2.5 hover:border-teal-500 hover:bg-teal-50 transition flex items-center justify-between group">
+                    <span className="text-slate-700">{o.texto}</span>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-600" />
                   </button>
-                </div>
-              </>
+                ))}
+              </div>
             ) : (
               <div className="rounded-xl border border-teal-300 bg-teal-50 p-3">
                 <Label>Descreva (obrigatório)</Label>
@@ -491,6 +478,16 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport, openId, 
           )
         ) : null}
       </div>
+      {!emRevisao && (
+        <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+          {pergunta && !outroAberto && (
+            <button className={btnGhost} onClick={pular} title="Deixa a pergunta pendente e vai para a próxima; você responde depois"><SkipForward className="w-4 h-4" /> Pular</button>
+          )}
+          <button className={btnGhost} onClick={() => setActiveId(null)} title="Sai e mantém salvo para continuar depois"><Pause className="w-4 h-4" /> Pausar</button>
+          <button className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition" onClick={() => descartar(sessao)}><X className="w-4 h-4" /> Descartar</button>
+        </div>
+      )}
+
       <p className="text-center text-xs text-slate-400 mt-2 font-mono">{Math.min(idx, itens.length)} / {itens.length}{puladasPend > 0 ? ` · ${puladasPend} pulada${puladasPend > 1 ? "s" : ""}` : ""}</p>
     </div>
   );
