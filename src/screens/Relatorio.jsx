@@ -47,8 +47,8 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
     const itens = rs.map((r) => {
       const o = base.opcoes.find((x) => x.id === r.opcao_id);
       const p = base.perguntas.find((x) => x.id === r.pergunta_id);
-      const f = base.funcionalidades.find((x) => x.id === p?.funcionalidade_id);
-      return { r, o, p, f, veredito: o?.veredito || "rever" };
+      const f = base.funcionalidades.find((x) => x.id === (r.funcionalidade_id || p?.funcionalidade_id));
+      return { r, o, p, f, veredito: r.veredito || o?.veredito || "rever" };
     });
     const grupos = {}; VEREDITO_ORDER.forEach((v) => (grupos[v] = []));
     const outros = [];

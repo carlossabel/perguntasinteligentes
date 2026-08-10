@@ -20,9 +20,10 @@ export default function PlanoProjeto({ base, diag, saveDiag, selectedId, setSele
     rs.forEach((r) => {
       const o = base.opcoes.find((x) => x.id === r.opcao_id);
       const p = base.perguntas.find((x) => x.id === r.pergunta_id);
-      const f = base.funcionalidades.find((x) => x.id === p?.funcionalidade_id);
+      const fid = r.funcionalidade_id || p?.funcionalidade_id;
+      const f = base.funcionalidades.find((x) => x.id === fid);
       if (!f) return;
-      const v = o?.veredito || "rever";
+      const v = r.veredito || o?.veredito || "rever";
       const cur = funcMap.get(f.id);
       const iv = ORDEM_TECNICA.indexOf(v);
       if (!cur) funcMap.set(f.id, { f, veredito: v });

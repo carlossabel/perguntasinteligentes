@@ -153,7 +153,8 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport, openId, 
     registrar(rev, textoOutro.trim());
   };
   const registrar = (opcao, outro) => {
-    const nova = { id: uid(), diagnostico_id: sessao.id, pergunta_id: atualItem.pergunta_id, opcao_id: opcao.id, tipo: atualItem.tipo, texto_outro: outro, anexos: [...anexos], criado_em: nowISO() };
+    const fpid = base.perguntas.find((x) => x.id === atualItem.pergunta_id)?.funcionalidade_id || null;
+    const nova = { id: uid(), diagnostico_id: sessao.id, pergunta_id: atualItem.pergunta_id, opcao_id: opcao.id, funcionalidade_id: fpid, veredito: opcao.veredito || null, tipo: atualItem.tipo, texto_outro: outro, anexos: [...anexos], criado_em: nowISO() };
     const todas = [...respostasSessao, nova];
     const ultima = todas.length >= itens.length;
     let novosDiag = diagnosticos;

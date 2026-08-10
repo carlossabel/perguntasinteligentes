@@ -29,8 +29,8 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
     if (f.como_atende) setShowDetalhes(true);
     setTarefas(Array.isArray(f.tarefas) ? f.tarefas.map((t) => ({ id: t.id, nome: t.nome || "", horas: t.horas ?? "", area: t.area || AREAS_CONSULTORIA[0] })) : []);
     const pg = base.perguntas.filter((p) => p.funcionalidade_id === f.id).map((p) => ({
-      texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar",
-      opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem).map((o) => ({ texto: o.texto, veredito: o.veredito, anexo: o.anexo || "nao" })),
+      id: p.id, texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar",
+      opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem).map((o) => ({ id: o.id, texto: o.texto, veredito: o.veredito, anexo: o.anexo || "nao" })),
     }));
     setPerguntas(pg);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,9 +114,9 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       perguntasArr = base.perguntas.filter((p) => p.funcionalidade_id !== fid);
       opcoesArr = base.opcoes.filter((o) => !antigas.includes(o.pergunta_id));
       usaveis.forEach((p) => {
-        const pid = uid();
+        const pid = p.id || uid();
         perguntasArr.push({ id: pid, funcionalidade_id: fid, texto: p.texto.trim(), origem: "humano", status: p.disposicao === "usar" ? "aprovada" : "sugerida", motivo: "", avaliado_por: "consultor", criado_em: nowISO() });
-        p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, anexo: o.anexo || "nao", ordem: idx }));
+        p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: o.id || uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, anexo: o.anexo || "nao", ordem: idx }));
       });
     } else {
       const fid = uid();
