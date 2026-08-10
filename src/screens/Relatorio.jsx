@@ -58,24 +58,6 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
     return { itens, grupos, outros, contagem };
   }, [d, diag.respostas, base]);
 
-  // Risco de implantação: vem só dos vereditos técnicos. atende/ok = 0.
-  const risco = useMemo(() => {
-    if (!dados) return null;
-    const P = { gap: 1, custom: 0.5, parcial: 0.4, parceira: 0.25, atende: 0, ok: 0 };
-    const c = dados.contagem;
-    const avaliados = c.gap + c.custom + c.parcial + c.parceira + c.atende + c.ok; // exclui "rever" (Outro)
-    if (!avaliados) return null;
-    const soma = c.gap * P.gap + c.custom * P.custom + c.parcial * P.parcial + c.parceira * P.parceira;
-    const pct = Math.round((soma / avaliados) * 100);
-    const faixa = pct >= 60 ? "Alto" : pct >= 30 ? "Médio" : "Baixo";
-    const partes = [];
-    if (c.gap) partes.push(`${c.gap} não atende`);
-    if (c.custom) partes.push(`${c.custom} customização${c.custom > 1 ? "ões" : ""}`);
-    if (c.parcial) partes.push(`${c.parcial} parcial${c.parcial > 1 ? "is" : ""}`);
-    if (c.parceira) partes.push(`${c.parceira} via parceiro`);
-    return { pct, faixa, avaliados, partes };
-  }, [dados]);
-
   useEffect(() => { setEditMode(false); setDraft(null); setLineEdit(null); setLineDraft(null); }, [d?.id]);
 
   if (!d) return <div className="max-w-3xl mx-auto"><Empty icon={FileText} title="Nenhum diagnóstico ainda" hint="Rode um diagnóstico no bot para gerar o relatório." /></div>;
@@ -131,9 +113,60 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
       default: return "não avaliada no diagnóstico técnico";
     }
   };
+
+  // ----- Edições manuais do relatório (persistidas no diagnóstico) -----
+  const edits = d?.edits || {};
+  const obsView = edits.obs ?? "";
+  const atendeView = (it) => edits.linhas?.[it?.r?.id]?.atende ?? comoAtendemos(it);
+  const temEdicoes = !!(edits.sintese || edits.obs || (edits.linhas && Object.keys(edits.linhas).length));
+
+  // ----- Cards de linha (auto com override + manuais), fonte única para render e contagem -----
+  const cardsLinha = [
+    ...linhas.map((it) => {
+      const e = linhaEdits[it.r.id] || {};
+      return {
+        key: it.r.id, manual: false, it, f: it.f, anexos: it.r?.anexos,
+        veredito: e.veredito || it.veredito,
+        titulo: it.f?.nome || "—",
+        hojePergunta: it.p?.texto || "",
+        hojeResposta: e.hoje != null ? e.hoje : (it.r?.texto_outro ? `Outro: ${it.r.texto_outro}` : it.o?.texto || ""),
+        atende: e.atende != null ? e.atende : atendeView(it),
+        nota: e.nota,
+      };
+    }),
+    ...linhasExtra.map((c) => ({
+      key: "x:" + c.id, manual: true, id: c.id,
+      veredito: c.veredito || "gap",
+      titulo: c.titulo || "(sem título)",
+      hojePergunta: "",
+      hojeResposta: c.hoje || "",
+      atende: c.atende || "",
+      nota: c.nota,
+    })),
+  ].sort((a, b) => ORDEM_TECNICA.indexOf(a.veredito) - ORDEM_TECNICA.indexOf(b.veredito));
+
+  // Contagem que reflete os cards como aparecem (reclassificações + cards manuais). "rever" soma os Outros.
+  const contagem = { rever: dados ? dados.outros.length : 0, gap: 0, custom: 0, parcial: 0, parceira: 0, atende: 0, ok: 0 };
+  cardsLinha.forEach((c) => (contagem[c.veredito] = (contagem[c.veredito] || 0) + 1));
+
+  const risco = (() => {
+    const P = { gap: 1, custom: 0.5, parcial: 0.4, parceira: 0.25, atende: 0, ok: 0 };
+    const c = contagem;
+    const avaliados = c.gap + c.custom + c.parcial + c.parceira + c.atende + c.ok; // exclui "rever"
+    if (!avaliados) return null;
+    const soma = c.gap * P.gap + c.custom * P.custom + c.parcial * P.parcial + c.parceira * P.parceira;
+    const pct = Math.round((soma / avaliados) * 100);
+    const faixa = pct >= 60 ? "Alto" : pct >= 30 ? "Médio" : "Baixo";
+    const partes = [];
+    if (c.gap) partes.push(`${c.gap} não atende`);
+    if (c.custom) partes.push(`${c.custom} customização${c.custom > 1 ? "ões" : ""}`);
+    if (c.parcial) partes.push(`${c.parcial} parcial${c.parcial > 1 ? "is" : ""}`);
+    if (c.parceira) partes.push(`${c.parceira} via parceiro`);
+    return { pct, faixa, avaliados, partes };
+  })();
+
   const sintese = (() => {
-    if (!dados) return "";
-    const c = dados.contagem;
+    const c = contagem;
     const avaliados = c.atende + c.ok + c.parceira + c.parcial + c.custom + c.gap;
     if (!avaliados) return "Nenhum processo avaliado ainda.";
     const diretos = c.atende + c.ok, ressalva = c.parceira + c.parcial + c.custom;
@@ -144,13 +177,7 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
     if (risco) s += ` Risco de implantação: ${risco.faixa}.`;
     return s;
   })();
-
-  // ----- Edições manuais do relatório (persistidas no diagnóstico) -----
-  const edits = d?.edits || {};
   const sinteseView = edits.sintese ?? sintese;
-  const obsView = edits.obs ?? "";
-  const atendeView = (it) => edits.linhas?.[it?.r?.id]?.atende ?? comoAtendemos(it);
-  const temEdicoes = !!(edits.sintese || edits.obs || (edits.linhas && Object.keys(edits.linhas).length));
 
   const entrarEdicao = () => { setDraft({ sintese: edits.sintese ?? sintese, obs: edits.obs ?? "", linhas: { ...(edits.linhas || {}) } }); setEditMode(true); };
   const cancelarEdicao = () => { setDraft(null); setEditMode(false); };
@@ -270,7 +297,7 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
         {["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].map((v) => (
           <div key={v} className={`rounded-xl border p-4 ${VEREDITOS[v].chip}`}>
-            <div className="text-3xl font-semibold">{dados.contagem[v] || 0}</div>
+            <div className="text-3xl font-semibold">{contagem[v] || 0}</div>
             <div className="font-mono text-xs uppercase tracking-wider mt-1">{VEREDITOS[v].label}</div>
           </div>
         ))}
@@ -293,29 +320,7 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
           </div>
         )}
 
-        {[
-          ...linhas.map((it) => {
-            const e = linhaEdits[it.r.id] || {};
-            return {
-              key: it.r.id, manual: false, it, f: it.f, anexos: it.r?.anexos,
-              veredito: e.veredito || it.veredito,
-              titulo: it.f?.nome || "—",
-              hojePergunta: it.p?.texto || "",
-              hojeResposta: e.hoje != null ? e.hoje : (it.r?.texto_outro ? `Outro: ${it.r.texto_outro}` : it.o?.texto || ""),
-              atende: e.atende != null ? e.atende : atendeView(it),
-              nota: e.nota,
-            };
-          }),
-          ...linhasExtra.map((c) => ({
-            key: "x:" + c.id, manual: true, id: c.id,
-            veredito: c.veredito || "gap",
-            titulo: c.titulo || "(sem título)",
-            hojePergunta: "",
-            hojeResposta: c.hoje || "",
-            atende: c.atende || "",
-            nota: c.nota,
-          })),
-        ].sort((a, b) => ORDEM_TECNICA.indexOf(a.veredito) - ORDEM_TECNICA.indexOf(b.veredito)).map((card) => (
+        {cardsLinha.map((card) => (
           <div key={card.key} className="rounded-xl border border-slate-200 overflow-hidden bg-white">
             <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100">
               <VeredictoChip v={card.veredito} />
