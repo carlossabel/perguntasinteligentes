@@ -277,6 +277,8 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
       </div>
 
       <div className="space-y-3">
+        <button className={btnGhost} onClick={addLinhaExtra}><Plus className="w-4 h-4" /> Adicionar card — ponto não coberto pelas perguntas</button>
+
         {dados.outros.length > 0 && (
           <div className="mb-1">
             <div className="flex items-center gap-2 mb-3"><VeredictoChip v="rever" size="lg" /><span className="text-sm text-slate-400">respostas em texto livre → voltam para a curadoria</span></div>
@@ -399,8 +401,6 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
             )}
           </div>
         ))}
-
-        <button className={btnGhost} onClick={addLinhaExtra}><Plus className="w-4 h-4" /> Adicionar card — ponto não coberto pelas perguntas</button>
       </div>
 
       {obsView.trim() && (
