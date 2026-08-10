@@ -27,6 +27,7 @@ export const slug = (s) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 export const nowISO = () => new Date().toISOString();
+export const tipoAnexo = (t) => ((t || "").startsWith("image/") ? "image" : (t || "").startsWith("audio/") ? "audio" : "file");
 export const fmtDate = (iso) => {
   try { return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }); }
   catch { return ""; }

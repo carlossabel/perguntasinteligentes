@@ -19,12 +19,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  */
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || __dirname;
 const FILE = path.join(DATA_DIR, "data.json");
+export const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
 
 // Garante que o diretório exista (o mount já existe, mas isto protege o dev local).
 try {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 } catch {
   /* diretório já existe ou é o __dirname */
+}
+try {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+} catch {
+  /* já existe */
 }
 
 export function load() {

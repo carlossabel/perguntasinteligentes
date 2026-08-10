@@ -29,7 +29,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
     if (f.como_atende) setShowDetalhes(true);
     setTarefas(Array.isArray(f.tarefas) ? f.tarefas.map((t) => ({ id: t.id, nome: t.nome || "", horas: t.horas ?? "", area: t.area || AREAS_CONSULTORIA[0] })) : []);
     const pg = base.perguntas.filter((p) => p.funcionalidade_id === f.id).map((p) => ({
-      texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar",
+      texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar", anexo: p.anexo || "nao",
       opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem).map((o) => ({ texto: o.texto, veredito: o.veredito })),
     }));
     setPerguntas(pg);
@@ -54,6 +54,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       const novas = (out.perguntas || []).map((p) => ({
         texto: p.pergunta || p.texto || "",
         disposicao: "usar",
+        anexo: "nao",
         opcoes: (p.opcoes || []).map((o) => ({ texto: o.texto || "", veredito: VEREDITOS[o.veredito] ? o.veredito : "rever" })),
       }));
       setPerguntas((cur) => [...cur, ...novas]);
@@ -63,7 +64,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   };
 
   const addPerguntaManual = () =>
-    setPerguntas((p) => [...p, { texto: "", disposicao: "usar", opcoes: [{ texto: "", veredito: "atende" }, { texto: "Outro", veredito: "rever" }] }]);
+    setPerguntas((p) => [...p, { texto: "", disposicao: "usar", anexo: "nao", opcoes: [{ texto: "", veredito: "atende" }, { texto: "Outro", veredito: "rever" }] }]);
   const updPergunta = (i, patch) => setPerguntas((p) => p.map((q, k) => (k === i ? { ...q, ...patch } : q)));
   const updOpcao = (pi, oi, patch) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: q.opcoes.map((o, j) => (j === oi ? { ...o, ...patch } : o)) } : q)));
   const addOpcao = (pi) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: [...q.opcoes, { texto: "", veredito: "atende" }] } : q)));
@@ -115,7 +116,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       opcoesArr = base.opcoes.filter((o) => !antigas.includes(o.pergunta_id));
       usaveis.forEach((p) => {
         const pid = uid();
-        perguntasArr.push({ id: pid, funcionalidade_id: fid, texto: p.texto.trim(), origem: "humano", status: p.disposicao === "usar" ? "aprovada" : "sugerida", motivo: "", avaliado_por: "consultor", criado_em: nowISO() });
+        perguntasArr.push({ id: pid, funcionalidade_id: fid, texto: p.texto.trim(), origem: "humano", status: p.disposicao === "usar" ? "aprovada" : "sugerida", motivo: "", avaliado_por: "consultor", anexo: p.anexo || "nao", criado_em: nowISO() });
         p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, ordem: idx }));
       });
     } else {
@@ -125,7 +126,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       opcoesArr = [...base.opcoes];
       usaveis.forEach((p) => {
         const pid = uid();
-        perguntasArr.push({ id: pid, funcionalidade_id: fid, texto: p.texto.trim(), origem: "ia", status: p.disposicao === "usar" ? "aprovada" : "sugerida", motivo: "", avaliado_por: "consultor", criado_em: nowISO() });
+        perguntasArr.push({ id: pid, funcionalidade_id: fid, texto: p.texto.trim(), origem: "ia", status: p.disposicao === "usar" ? "aprovada" : "sugerida", motivo: "", avaliado_por: "consultor", anexo: p.anexo || "nao", criado_em: nowISO() });
         p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, ordem: idx }));
       });
     }
@@ -254,6 +255,13 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
                 {[["usar", "Usar → aprovada"], ["curar", "Curar depois"], ["descartar", "Descartar"]].map(([v, l]) => (
                   <button key={v} onClick={() => updPergunta(pi, { disposicao: v })}
                     className={`text-xs font-mono uppercase tracking-wider rounded-full px-2.5 py-1 border transition ${p.disposicao === v ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-500 border-slate-300 hover:border-teal-400"}`}>{l}</button>
+                ))}
+              </div>
+              <div className="flex items-center flex-wrap gap-1.5 mb-3">
+                <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mr-1">Anexo (evidência)</span>
+                {[["nao", "Não"], ["opcional", "Opcional"], ["obrigatorio", "Obrigatório"]].map(([v, l]) => (
+                  <button key={v} onClick={() => updPergunta(pi, { anexo: v })}
+                    className={`text-xs font-mono uppercase tracking-wider rounded-full px-2.5 py-1 border transition ${(p.anexo || "nao") === v ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-500 border-slate-300 hover:border-teal-400"}`}>{l}</button>
                 ))}
               </div>
               <div className="space-y-2">

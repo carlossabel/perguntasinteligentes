@@ -33,3 +33,23 @@ export async function generate(tema, areaId) {
   return r.json();
 }
 
+export async function uploadAnexo(file) {
+  const q = new URLSearchParams({ nome: file.name || "arquivo", tipo: file.type || "application/octet-stream" });
+  const r = await fetch(`/api/upload?${q.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: file,
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    throw new Error(e.error || "Falha ao enviar o anexo.");
+  }
+  return r.json(); // { id, nome, tipo, url, tamanho }
+}
+
+export async function deleteAnexo(url) {
+  try {
+    await fetch("/api/upload/delete", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ url }) });
+  } catch { /* best-effort */ }
+}
+

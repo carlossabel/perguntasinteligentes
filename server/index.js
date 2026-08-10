@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import "dotenv/config";
 
-import { load, save, DATA_FILE } from "./db.js";
+import { load, save, DATA_FILE, UPLOAD_DIR } from "./db.js";
 import { seedBase } from "./seed.js";
 import { gerarComIA } from "./anthropic.js";
 
@@ -130,6 +130,40 @@ app.post("/api/generate", async (req, res) => {
     res.status(502).json({ error: e.message });
   }
 });
+
+// ---- Anexos (documentos, fotos, áudios das respostas) ----
+const MIME_EXT = {
+  "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif", "image/heic": ".heic",
+  "audio/mpeg": ".mp3", "audio/mp4": ".m4a", "audio/webm": ".webm", "audio/ogg": ".ogg", "audio/wav": ".wav",
+  "application/pdf": ".pdf",
+};
+const mimeExt = (tipo) => MIME_EXT[tipo] || "";
+
+app.post("/api/upload", express.raw({ type: "*/*", limit: "60mb" }), (req, res) => {
+  try {
+    const nome = (req.query.nome || "arquivo").toString().slice(0, 200);
+    const tipo = (req.query.tipo || "application/octet-stream").toString();
+    const buf = req.body;
+    if (!buf || !buf.length) return res.status(400).json({ error: "Arquivo vazio." });
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    let ext = path.extname(nome);
+    if (!ext) ext = mimeExt(tipo);
+    const fname = id + ext;
+    fs.writeFileSync(path.join(UPLOAD_DIR, fname), buf);
+    res.json({ id, nome, tipo, url: "/uploads/" + fname, tamanho: buf.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/upload/delete", (req, res) => {
+  const url = (req.body && req.body.url) || "";
+  const fname = path.basename(url);
+  if (fname && !fname.includes("..")) { try { fs.unlinkSync(path.join(UPLOAD_DIR, fname)); } catch { /* já removido */ } }
+  res.json({ ok: true });
+});
+
+app.use("/uploads", express.static(UPLOAD_DIR));
 
 const dist = path.join(__dirname, "..", "dist");
 if (fs.existsSync(dist)) {

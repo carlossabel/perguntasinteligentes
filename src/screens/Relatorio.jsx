@@ -1,6 +1,18 @@
 import { useState, useEffect, useMemo } from "react";
-import { FileText, Copy, Check, Edit3, Save, RotateCcw, Clock, ListChecks, Pencil } from "lucide-react";
-import { VEREDITOS, VEREDITO_ORDER, fmtDate, btnTeal, btnGhost, VeredictoChip, Field, Label, Empty, SectionTitle } from "../ui.jsx";
+import { FileText, Copy, Check, Edit3, Save, RotateCcw, Clock, ListChecks, Pencil, Paperclip } from "lucide-react";
+import { VEREDITOS, VEREDITO_ORDER, fmtDate, tipoAnexo, btnTeal, btnGhost, VeredictoChip, Field, Label, Empty, SectionTitle } from "../ui.jsx";
+
+function AnexoView({ a }) {
+  const t = tipoAnexo(a.tipo);
+  if (t === "image") return <a href={a.url} target="_blank" rel="noreferrer" title={a.nome}><img src={a.url} alt={a.nome} className="h-16 w-16 object-cover rounded-lg border border-slate-200" /></a>;
+  if (t === "audio") return <audio controls src={a.url} className="h-9" />;
+  return <a href={a.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-700 hover:underline border border-slate-200 rounded-lg px-2 py-1 bg-white"><Paperclip className="w-3.5 h-3.5" />{a.nome}</a>;
+}
+
+function Anexos({ lista }) {
+  if (!lista || !lista.length) return null;
+  return <div className="mt-2 flex flex-wrap items-center gap-2">{lista.map((a) => <AnexoView key={a.id} a={a} />)}</div>;
+}
 
 // Ordem das linhas técnicas: do mais crítico ao melhor. "Rever" aparece antes, em bloco próprio.
 const ORDEM_TECNICA = ["gap", "custom", "parcial", "parceira", "atende", "ok"];
@@ -162,6 +174,7 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
     linhas.forEach((it) => {
       const hoje = it.r?.texto_outro ? `Outro: ${it.r.texto_outro}` : it.o?.texto;
       t += `\n• ${it.f?.nome} [${VEREDITOS[it.veredito].short}]\n  Hoje: ${it.p?.texto} → ${hoje}\n  Atendemos: ${atendeView(it)}\n`;
+      if (it.r?.anexos?.length) t += `  Anexos: ${it.r.anexos.map((a) => a.nome).join(", ")}\n`;
       const tks = tarefasDe(it.f);
       if (tks.length) {
         t += `  Plano de implantação (${horasFunc(it.f)} h):\n`;
@@ -289,7 +302,10 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
             <div className="flex items-center gap-2 mb-3"><VeredictoChip v="rever" size="lg" /><span className="text-sm text-slate-400">respostas em texto livre → voltam para a curadoria</span></div>
             <div className="rounded-2xl border border-teal-200 bg-teal-50 p-5 space-y-2">
               {dados.outros.map((it, i) => (
-                <div key={i} className="text-sm"><span className="font-medium text-slate-700">{it.f?.nome}:</span> <span className="text-slate-600">{it.r.texto_outro}</span></div>
+                <div key={i} className="text-sm">
+                  <span className="font-medium text-slate-700">{it.f?.nome}:</span> <span className="text-slate-600">{it.r.texto_outro}</span>
+                  <Anexos lista={it.r?.anexos} />
+                </div>
               ))}
             </div>
           </div>
@@ -307,6 +323,7 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
                 <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-1">Como é hoje</div>
                 <div className="text-sm text-slate-500">{it.p?.texto}</div>
                 <div className="text-sm text-slate-800 font-medium mt-1">{it.r?.texto_outro ? `Outro: ${it.r.texto_outro}` : it.o?.texto}</div>
+                <Anexos lista={it.r?.anexos} />
               </div>
               <div className="p-4">
                 <div className="font-mono text-[11px] uppercase tracking-widest text-teal-600 mb-1">Como podemos atender</div>
