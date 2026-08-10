@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageSquare, ChevronRight, Send, ArrowLeft, X, FileText, Play, Plus, Pause } from "lucide-react";
+import { MessageSquare, ChevronRight, Send, ArrowLeft, X, FileText, Play, Plus, Pause, Pencil, SkipForward, RotateCcw } from "lucide-react";
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
 
 const camposOrdenados = (base) => [...(base.camposEmpresa || [])].sort((a, b) => a.ordem - b.ordem);
@@ -16,7 +16,7 @@ function CampoInput({ campo, valor, onChange }) {
   return <input className={inputCls} type={campo.tipo === "numero" ? "number" : "text"} value={valor || ""} onChange={(e) => onChange(e.target.value)} placeholder={campo.label} />;
 }
 
-export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
+export default function Diagnostico({ base, diag, saveDiag, goToReport, openId, clearOpen }) {
   const segmentos = base.segmentos || [];
   const empresas = diag.empresas || [];
   const [activeId, setActiveId] = useState(null);
@@ -29,6 +29,10 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   const [filtroArea, setFiltroArea] = useState("");
   const [outroAberto, setOutroAberto] = useState(false);
   const [textoOutro, setTextoOutro] = useState("");
+  const [editRespId, setEditRespId] = useState(null);
+  const [editReverOpt, setEditReverOpt] = useState(null);
+  const [editOutroText, setEditOutroText] = useState("");
+  const [puladas, setPuladas] = useState([]);
   const [erro, setErro] = useState("");
   const scrollRef = useRef(null);
 
@@ -38,7 +42,8 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
   const diagnosticos = diag.diagnosticos || [];
   const emAndamento = diagnosticos.filter((d) => d.status === "em_andamento");
   const concluidos = diagnosticos.filter((d) => d.status !== "em_andamento");
-  const sessao = activeId ? diagnosticos.find((d) => d.id === activeId && d.status === "em_andamento") : null;
+  const sessao = activeId ? diagnosticos.find((d) => d.id === activeId) : null;
+  const emRevisao = !!(sessao && sessao.status !== "em_andamento");
 
   // Resolvedores por tipo de item (inicial = macro/assessment; tecnica = funcionalidade).
   const perguntaDe = (it) => it.tipo === "inicial"
@@ -61,17 +66,25 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
 
   const pendentes = itens.filter((it) => !answeredIds.has(it.pergunta_id));
   const pendIniciais = pendentes.filter((it) => it.tipo === "inicial");
+  const pendTecnicas = pendentes.filter((it) => it.tipo === "tecnica");
   const areasPresentes = [...new Set(itens.filter((it) => it.tipo === "tecnica").map(areaDe).filter(Boolean))];
+  const naoPulada = (it) => !puladas.includes(it.pergunta_id);
+  const pendIniciaisNP = pendIniciais.filter(naoPulada);
+  const pendTecnicasNP = pendTecnicas.filter(naoPulada);
   let atualItem;
-  if (pendIniciais.length) atualItem = pendIniciais[0];
-  else {
-    const pt = pendentes.filter((it) => it.tipo === "tecnica");
-    atualItem = (filtroArea ? pt.filter((it) => areaDe(it) === filtroArea) : pt)[0];
+  if (filtroArea) {
+    // Área escolhida: vai direto para as perguntas técnicas dela (mesmo que ainda haja iniciais pendentes).
+    atualItem = pendTecnicasNP.filter((it) => areaDe(it) === filtroArea)[0];
+  } else if (pendIniciaisNP.length) {
+    atualItem = pendIniciaisNP[0];
+  } else {
+    atualItem = pendTecnicasNP[0];
   }
   const pergunta = atualItem ? { ...perguntaDe(atualItem), opcoes: opcoesDe(atualItem) } : null;
 
-  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [idx, activeId, outroAberto, filtroArea]);
-  useEffect(() => { setFiltroArea(""); }, [activeId]);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [idx, activeId, outroAberto, filtroArea, puladas.length]);
+  useEffect(() => { setFiltroArea(""); setPuladas([]); }, [activeId]);
+  useEffect(() => { if (openId) { setActiveId(openId); clearOpen && clearOpen(); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [openId]);
 
   const selecionarEmpresa = (id) => {
     setEmpresaId(id);
@@ -146,6 +159,45 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
     saveDiag({ ...diag, diagnosticos: novosDiag, respostas: [...(diag.respostas || []), nova] });
     setOutroAberto(false); setTextoOutro("");
     if (ultima) { const id = sessao.id; setActiveId(null); goToReport(id); }
+  };
+
+  // ---- Editar uma resposta já dada (em execução ou após concluído) ----
+  const editarResposta = (resp, opcao, outro) => {
+    const novasRespostas = (diag.respostas || []).map((r) => r.id === resp.id ? { ...r, opcao_id: opcao.id, texto_outro: outro ?? null } : r);
+    let novosDiag = diagnosticos;
+    const dRec = diagnosticos.find((x) => x.id === resp.diagnostico_id);
+    // Se mexeu numa pergunta inicial e todas as iniciais já foram respondidas, recalcula maturidade e oportunidades.
+    if (resp.tipo === "inicial" && dRec) {
+      const respDoDiag = novasRespostas.filter((r) => r.diagnostico_id === dRec.id);
+      const iniciaisResp = respDoDiag.filter((r) => r.tipo === "inicial");
+      const totalIniciais = (dRec.itens || []).filter((it) => it.tipo === "inicial").length;
+      if (iniciaisResp.length && iniciaisResp.length >= totalIniciais) {
+        const niveis = iniciaisResp.map((r) => opById(r.opcao_id, "inicial")?.nivel).filter((n) => Number.isFinite(n));
+        const maturidade = niveis.length ? Math.round((niveis.reduce((a, b) => a + b, 0) / (niveis.length * 4)) * 100) : null;
+        const oportunidades = [...new Set(iniciaisResp.flatMap((r) => opById(r.opcao_id, "inicial")?.oportunidades || []))];
+        novosDiag = diagnosticos.map((x) => x.id === dRec.id ? { ...x, maturidade, oportunidades } : x);
+      }
+    }
+    saveDiag({ ...diag, diagnosticos: novosDiag, respostas: novasRespostas });
+  };
+  const abrirEdicao = (resp) => { setEditRespId(resp.id); setEditReverOpt(null); setEditOutroText(resp.texto_outro || ""); setOutroAberto(false); };
+  const fecharEdicao = () => { setEditRespId(null); setEditReverOpt(null); setEditOutroText(""); };
+  const aplicarEdicao = (resp, opcao) => {
+    if (resp.tipo === "tecnica" && opcao.veredito === "rever") { setEditReverOpt(opcao); setEditOutroText(resp.texto_outro || ""); return; }
+    editarResposta(resp, opcao, null); fecharEdicao();
+  };
+  const confirmarEdicaoOutro = (resp) => { if (!editOutroText.trim()) return; editarResposta(resp, editReverOpt, editOutroText.trim()); fecharEdicao(); };
+
+  const pular = () => {
+    if (!atualItem) return;
+    setPuladas((p) => p.includes(atualItem.pergunta_id) ? p : [...p, atualItem.pergunta_id]);
+    setOutroAberto(false); setTextoOutro("");
+  };
+  const revisarPuladas = () => {
+    setPuladas((p) => {
+      if (!filtroArea) return [];
+      return p.filter((pid) => { const it = itens.find((x) => x.pergunta_id === pid); return !(it && it.tipo === "tecnica" && areaDe(it) === filtroArea); });
+    });
   };
 
   const incluirNovas = () => {
@@ -256,13 +308,14 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
             <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-2">Diagnósticos concluídos</h3>
             <div className="space-y-2">
               {[...concluidos].reverse().map((d) => (
-                <button key={d.id} onClick={() => goToReport(d.id)} className="w-full flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-left hover:border-teal-400 transition">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-slate-800">{d.cliente_nome}</div>
-                    <div className="text-xs text-slate-400 font-mono">{d.escopo_label} · {fmtDate(d.criado_em)}</div>
-                  </div>
-                  <FileText className="w-4 h-4 text-teal-600" />
-                </button>
+                <div key={d.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-teal-400 transition">
+                  <button onClick={() => goToReport(d.id)} className="flex-1 text-left min-w-0">
+                    <div className="text-sm font-medium text-slate-800 truncate">{d.cliente_nome}</div>
+                    <div className="text-xs text-slate-400 font-mono truncate">{d.escopo_label} · {fmtDate(d.criado_em)}</div>
+                  </button>
+                  <button onClick={() => setActiveId(d.id)} className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1 shrink-0"><Pencil className="w-3 h-3" /> corrigir</button>
+                  <FileText className="w-4 h-4 text-teal-600 shrink-0" />
+                </div>
               ))}
             </div>
           </div>
@@ -286,13 +339,17 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
 
   // ---- Tela de responder ----
   const concluiu = idx >= itens.length;
-  const answered = respostasSessao.map((r) => ({ p: perguntaDe({ pergunta_id: r.pergunta_id, tipo: r.tipo }), o: opById(r.opcao_id, r.tipo), outro: r.texto_outro }));
+  const answered = respostasSessao.map((r) => ({ r, p: perguntaDe({ pergunta_id: r.pergunta_id, tipo: r.tipo }), o: opById(r.opcao_id, r.tipo), outro: r.texto_outro }));
   const novasDisponiveis = (() => {
     const funcIds = sessao.func_ids || [];
     const existentes = new Set((sessao.itens || []).map((it) => it.pergunta_id));
     return base.perguntas.filter((p) => funcIds.includes(p.funcionalidade_id) && p.status === "aprovada" && !existentes.has(p.id)).length;
   })();
   const faseAtual = atualItem?.tipo === "inicial" ? "Pergunta inicial (macro)" : atualItem ? areaNome(areaDe(atualItem)) : "";
+  const puladasPend = pendentes.filter((it) => puladas.includes(it.pergunta_id)).length;
+  const escopoPuladas = filtroArea
+    ? pendentes.filter((it) => it.tipo === "tecnica" && areaDe(it) === filtroArea && puladas.includes(it.pergunta_id))
+    : pendentes.filter((it) => puladas.includes(it.pergunta_id));
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -302,22 +359,46 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
           <span className="text-xs text-slate-400 font-mono ml-2">{sessao.escopo_label}</span>
         </div>
         <div className="flex items-center gap-3">
-          {novasDisponiveis > 0 && <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={incluirNovas}><Plus className="w-3 h-3" /> incluir {novasDisponiveis} nova{novasDisponiveis > 1 ? "s" : ""}</button>}
-          <button className={btnGhost} onClick={() => setActiveId(null)} title="Sai e mantém salvo para continuar depois"><Pause className="w-4 h-4" /> Pausar</button>
-          <button className="text-xs text-slate-400 hover:text-red-600 inline-flex items-center gap-1" onClick={() => descartar(sessao)}><X className="w-3 h-3" /> descartar</button>
+          {!emRevisao && novasDisponiveis > 0 && <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={incluirNovas}><Plus className="w-3 h-3" /> incluir {novasDisponiveis} nova{novasDisponiveis > 1 ? "s" : ""}</button>}
+          {emRevisao ? (
+            <button className={btnTeal + " !py-1.5"} onClick={() => { const id = sessao.id; setActiveId(null); goToReport(id); }}><FileText className="w-4 h-4" /> Voltar ao relatório</button>
+          ) : (
+            <>
+              <button className={btnGhost} onClick={() => setActiveId(null)} title="Sai e mantém salvo para continuar depois"><Pause className="w-4 h-4" /> Pausar</button>
+              <button className="text-xs text-slate-400 hover:text-red-600 inline-flex items-center gap-1" onClick={() => descartar(sessao)}><X className="w-3 h-3" /> descartar</button>
+            </>
+          )}
         </div>
       </div>
 
-      {pendIniciais.length === 0 && areasPresentes.length > 1 && (
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-slate-400">Responder por área:</span>
-          <select className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" value={filtroArea} onChange={(e) => setFiltroArea(e.target.value)}>
-            <option value="">Todas as áreas</option>
+      {emRevisao && (
+        <div className="mb-3 rounded-lg bg-teal-50 border border-teal-200 px-3 py-2 text-xs text-teal-800 flex items-center gap-2">
+          <Pencil className="w-3.5 h-3.5" /> Modo revisão — clique no lápis em qualquer resposta para corrigi-la. Mudanças em perguntas iniciais recalculam maturidade e oportunidades.
+        </div>
+      )}
+
+      {pendTecnicas.length > 0 && areasPresentes.length >= 1 && (
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Ir para área</span>
+            {pendIniciais.length > 0 && !filtroArea && <span className="text-[11px] text-amber-600">· respondendo as iniciais (macro) primeiro</span>}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={() => setFiltroArea("")}
+              className={`text-xs rounded-full px-3 py-1.5 border transition ${filtroArea === "" ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-500 border-slate-300 hover:border-teal-400"}`}>
+              Todas{pendIniciais.length > 0 ? " (com iniciais)" : ""}
+            </button>
             {areasPresentes.map((aid) => {
               const pend = pendentes.filter((it) => it.tipo === "tecnica" && areaDe(it) === aid).length;
-              return <option key={aid} value={aid}>{areaNome(aid)}{pend ? ` (${pend} pendente${pend > 1 ? "s" : ""})` : " (ok)"}</option>;
+              const done = pend === 0;
+              return (
+                <button key={aid} onClick={() => setFiltroArea(aid)} disabled={done}
+                  className={`text-xs rounded-full px-3 py-1.5 border transition ${filtroArea === aid ? "bg-teal-700 text-white border-teal-700" : done ? "bg-slate-50 text-slate-300 border-slate-200 cursor-default" : "bg-white text-slate-600 border-slate-300 hover:border-teal-400"}`}>
+                  {areaNome(aid)} {done ? "✓" : `· ${pend}`}
+                </button>
+              );
             })}
-          </select>
+          </div>
         </div>
       )}
 
@@ -326,10 +407,41 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
       </div>
 
       <div ref={scrollRef} className="rounded-2xl border border-slate-200 bg-white p-5 overflow-y-auto space-y-4" style={{ maxHeight: "52vh" }}>
-        {answered.map((a, i) => (
-          <div key={i} className="space-y-2">
+        {answered.map((a) => (
+          <div key={a.r.id} className="space-y-2">
             <div className="text-sm text-slate-700 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs">{a.p?.texto}</div>
-            <div className="flex justify-end"><div className="text-sm text-white bg-teal-700 rounded-2xl rounded-tr-sm px-4 py-2.5 inline-block max-w-xs">{a.outro ? `Outro: ${a.outro}` : a.o?.texto}</div></div>
+            {editRespId === a.r.id ? (
+              <div className="rounded-xl border border-teal-300 bg-teal-50/60 p-3 space-y-2">
+                {!editReverOpt ? (
+                  <>
+                    <div className="grid gap-2">
+                      {opcoesDe({ pergunta_id: a.r.pergunta_id, tipo: a.r.tipo }).map((o) => (
+                        <button key={o.id} onClick={() => aplicarEdicao(a.r, o)}
+                          className={`text-left text-sm rounded-xl border px-4 py-2.5 transition flex items-center justify-between ${o.id === a.r.opcao_id ? "border-teal-500 bg-teal-100 text-teal-900" : "border-slate-300 hover:border-teal-500 hover:bg-teal-50 text-slate-700"}`}>
+                          <span>{o.texto}</span>
+                          {o.id === a.r.opcao_id && <span className="text-[10px] font-mono uppercase tracking-wider text-teal-600">atual</span>}
+                        </button>
+                      ))}
+                    </div>
+                    <button className="text-xs text-slate-400 hover:text-slate-600" onClick={fecharEdicao}>cancelar</button>
+                  </>
+                ) : (
+                  <div>
+                    <Label>Descreva (obrigatório)</Label>
+                    <textarea className={inputCls} autoFocus value={editOutroText} onChange={(e) => setEditOutroText(e.target.value)} placeholder="Como funciona no caso de vocês…" />
+                    <div className="flex gap-2 mt-2">
+                      <button className={btnTeal} onClick={() => confirmarEdicaoOutro(a.r)} disabled={!editOutroText.trim()}><Send className="w-4 h-4" /> Salvar</button>
+                      <button className={btnGhost} onClick={() => setEditReverOpt(null)}>Voltar às opções</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex justify-end items-center gap-1.5">
+                <button onClick={() => abrirEdicao(a.r)} title="Corrigir esta resposta" className="text-slate-300 hover:text-teal-600 transition"><Pencil className="w-3.5 h-3.5" /></button>
+                <div className="text-sm text-white bg-teal-700 rounded-2xl rounded-tr-sm px-4 py-2.5 inline-block max-w-xs">{a.outro ? `Outro: ${a.outro}` : a.o?.texto}</div>
+              </div>
+            )}
           </div>
         ))}
 
@@ -337,14 +449,22 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
           <div className="space-y-3 pt-1">
             <div className="text-sm text-slate-800 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs font-medium">{pergunta.texto}<span className="block text-xs font-normal text-slate-400 mt-0.5">{faseAtual}</span></div>
             {!outroAberto ? (
-              <div className="grid gap-2">
-                {pergunta.opcoes.map((o) => (
-                  <button key={o.id} onClick={() => escolher(o)} className="text-left text-sm rounded-xl border border-slate-300 px-4 py-2.5 hover:border-teal-500 hover:bg-teal-50 transition flex items-center justify-between group">
-                    <span className="text-slate-700">{o.texto}</span>
-                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-600" />
+              <>
+                <div className="grid gap-2">
+                  {pergunta.opcoes.map((o) => (
+                    <button key={o.id} onClick={() => escolher(o)} className="text-left text-sm rounded-xl border border-slate-300 px-4 py-2.5 hover:border-teal-500 hover:bg-teal-50 transition flex items-center justify-between group">
+                      <span className="text-slate-700">{o.texto}</span>
+                      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-600" />
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-end pt-1">
+                  <button onClick={pular} title="Deixa pendente e vai para a próxima; você responde depois"
+                    className="text-xs text-slate-400 hover:text-teal-700 inline-flex items-center gap-1">
+                    <SkipForward className="w-3.5 h-3.5" /> Pular por ora (responder depois)
                   </button>
-                ))}
-              </div>
+                </div>
+              </>
             ) : (
               <div className="rounded-xl border border-teal-300 bg-teal-50 p-3">
                 <Label>Descreva (obrigatório)</Label>
@@ -357,12 +477,21 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport }) {
             )}
           </div>
         ) : !concluiu ? (
-          <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-slate-600">
-            Área <b>{areaNome(filtroArea)}</b> concluída. Escolha outra área acima (ou “Todas”), ou pause e retome depois com o responsável.
-          </div>
+          escopoPuladas.length > 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-600 space-y-3">
+              <div>
+                {escopoPuladas.length} pergunta{escopoPuladas.length > 1 ? "s" : ""} pulada{escopoPuladas.length > 1 ? "s" : ""}{filtroArea ? <> na área <b>{areaNome(filtroArea)}</b></> : ""} — ainda sem resposta. Você pode revisá-las agora, trocar de área, ou pausar e retomar depois com o responsável.
+              </div>
+              <button className={btnTeal} onClick={revisarPuladas}><RotateCcw className="w-4 h-4" /> Revisar pulada{escopoPuladas.length > 1 ? "s" : ""}</button>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-slate-600">
+              Área <b>{areaNome(filtroArea)}</b> concluída. Escolha outra área acima (ou “Todas”), ou pause e retome depois com o responsável.
+            </div>
+          )
         ) : null}
       </div>
-      <p className="text-center text-xs text-slate-400 mt-2 font-mono">{Math.min(idx, itens.length)} / {itens.length}</p>
+      <p className="text-center text-xs text-slate-400 mt-2 font-mono">{Math.min(idx, itens.length)} / {itens.length}{puladasPend > 0 ? ` · ${puladasPend} pulada${puladasPend > 1 ? "s" : ""}` : ""}</p>
     </div>
   );
 }

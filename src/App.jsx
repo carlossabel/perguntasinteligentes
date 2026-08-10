@@ -25,6 +25,7 @@ export default function App() {
   const [diag, setDiag] = useState(null);
   const [editingFunc, setEditingFunc] = useState(null);
   const [reportId, setReportId] = useState(null);
+  const [diagTarget, setDiagTarget] = useState(null);
   const [ready, setReady] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -46,6 +47,7 @@ export default function App() {
 
   const goToReport = (id) => { setReportId(id); setTab("relatorio"); };
   const goToPlano = (id) => { setReportId(id); setTab("plano"); };
+  const goToDiagnostico = (id) => { setDiagTarget(id); setTab("diagnostico"); };
   const goEdit = (fid) => { setEditingFunc(fid); setTab("cadastro"); };
 
   if (erro) return (
@@ -90,8 +92,8 @@ export default function App() {
         {tab === "assessment" && <Assessment base={base} saveBase={saveBase} diag={diag} saveDiag={saveDiag} />}
         {tab === "cadastro" && <Cadastro base={base} saveBase={saveBase} editing={editingFunc} clearEditing={() => setEditingFunc(null)} />}
         {tab === "curadoria" && <Curadoria base={base} saveBase={saveBase} diag={diag} />}
-        {tab === "diagnostico" && <Diagnostico base={base} diag={diag} saveDiag={saveDiag} goToReport={goToReport} />}
-        {tab === "relatorio" && <Relatorio base={base} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} goToPlano={goToPlano} />}
+        {tab === "diagnostico" && <Diagnostico base={base} diag={diag} saveDiag={saveDiag} goToReport={goToReport} openId={diagTarget} clearOpen={() => setDiagTarget(null)} />}
+        {tab === "relatorio" && <Relatorio base={base} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} goToPlano={goToPlano} goToDiagnostico={goToDiagnostico} />}
         {tab === "plano" && <PlanoProjeto base={base} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} />}
         {tab === "base" && <Base base={base} saveBase={saveBase} onEdit={goEdit} />}
       </main>
