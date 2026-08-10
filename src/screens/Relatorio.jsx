@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { FileText, Copy, Check, Edit3, Save, RotateCcw, Clock, ListChecks, Pencil, Paperclip } from "lucide-react";
-import { VEREDITOS, VEREDITO_ORDER, fmtDate, tipoAnexo, btnTeal, btnGhost, VeredictoChip, Field, Label, Empty, SectionTitle } from "../ui.jsx";
+import { FileText, Copy, Check, Edit3, Save, RotateCcw, Clock, ListChecks, Pencil, Paperclip, Plus, X } from "lucide-react";
+import { VEREDITOS, VEREDITO_ORDER, fmtDate, tipoAnexo, uid, btnTeal, btnGhost, VeredictoChip, Field, Label, Empty, SectionTitle } from "../ui.jsx";
 
 function AnexoView({ a }) {
   const t = tipoAnexo(a.tipo);
@@ -36,6 +36,7 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
   const [draft, setDraft] = useState(null);
   const [notaEdit, setNotaEdit] = useState(null);
   const [notaTxt, setNotaTxt] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
   const diags = [...diag.diagnosticos].filter((x) => x.status !== "em_andamento").reverse();
   const d = diag.diagnosticos.find((x) => x.id === selectedId) || diags[0];
   const areaNome = (id) => base.areas.find((a) => a.id === id)?.nome || "—";
@@ -76,7 +77,7 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
     return { pct, faixa, avaliados, partes };
   }, [dados]);
 
-  useEffect(() => { setEditMode(false); setDraft(null); }, [d?.id]);
+  useEffect(() => { setEditMode(false); setDraft(null); setNotaEdit(null); setAddOpen(false); }, [d?.id]);
 
   if (!d) return <div className="max-w-3xl mx-auto"><Empty icon={FileText} title="Nenhum diagnóstico ainda" hint="Rode um diagnóstico no bot para gerar o relatório." /></div>;
 
@@ -95,10 +96,14 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
   });
   const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
   const notas = d?.notasVeredito || {};
-  const salvarNota = (v, txt) => {
-    const nv = { ...notas, [v]: txt.trim() ? txt.trim() : undefined };
-    saveDiag && saveDiag({ ...diag, diagnosticos: diag.diagnosticos.map((x) => x.id === d.id ? { ...x, notasVeredito: nv } : x) });
+  const patchDiag = (patch) => saveDiag && saveDiag({ ...diag, diagnosticos: diag.diagnosticos.map((x) => x.id === d.id ? { ...x, ...patch } : x) });
+  const salvarNota = (v, txt) => patchDiag({ notasVeredito: { ...notas, [v]: txt.trim() ? txt.trim() : undefined } });
+  const salvarNotaCard = (card, txt) => {
+    if (card.manual) patchDiag({ cardsExtra: (d.cardsExtra || []).map((c) => c.id === card.id ? { ...c, nota: txt.trim() ? txt.trim() : undefined } : c) });
+    else salvarNota(card.veredito, txt);
   };
+  const addCardExtra = (v) => patchDiag({ cardsExtra: [...(d.cardsExtra || []), { id: uid(), veredito: v }] });
+  const removerCardExtra = (id) => patchDiag({ cardsExtra: (d.cardsExtra || []).filter((c) => c.id !== id) });
   const anexosIniciais = (diag.respostas || [])
     .filter((r) => r.diagnostico_id === d.id && r.tipo === "inicial" && r.anexos && r.anexos.length)
     .map((r) => ({ id: r.id, pergunta: (base.assessmentPerguntas || []).find((x) => x.id === r.pergunta_id)?.texto || "Pergunta inicial", anexos: r.anexos }));
@@ -204,32 +209,12 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <SectionTitle sub={`${d.cliente_nome} · ${escopoLabel(d)} · ${fmtDate(d.criado_em)}`}>Pré-relatório de aderência</SectionTitle>
-        <div className="flex items-center gap-2">
-          {diags.length > 1 && (
-            <select className="rounded-lg border border-slate-300 px-2 py-2 text-sm max-w-xs" value={d.id} onChange={(e) => setSelectedId(e.target.value)}>
-              {diags.map((x) => <option key={x.id} value={x.id}>{x.cliente_nome} · {fmtDate(x.criado_em)}</option>)}
-            </select>
-          )}
-          {!editMode ? (
-            <button className={btnGhost} onClick={entrarEdicao}><Edit3 className="w-4 h-4" /> Editar</button>
-          ) : (
-            <>
-              <button className={btnGhost} onClick={cancelarEdicao}>Cancelar</button>
-              <button className={btnTeal} onClick={salvarEdicoes}><Save className="w-4 h-4" /> Salvar</button>
-            </>
-          )}
-          {!editMode && temEdicoes && <button className={btnGhost} onClick={restaurar}><RotateCcw className="w-4 h-4" /> Restaurar</button>}
-          {!editMode && goToPlano && <button className={btnGhost} onClick={() => goToPlano(d.id)}><ListChecks className="w-4 h-4" /> Plano de projeto</button>}
-          {!editMode && goToDiagnostico && <button className={btnGhost} onClick={() => goToDiagnostico(d.id)}><Pencil className="w-4 h-4" /> Corrigir respostas</button>}
-          <button className={btnGhost} onClick={copiar} disabled={editMode}>{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}{copied ? "Copiado" : "Copiar"}</button>
-        </div>
+        {diags.length > 1 && (
+          <select className="rounded-lg border border-slate-300 px-2 py-2 text-sm max-w-xs" value={d.id} onChange={(e) => setSelectedId(e.target.value)}>
+            {diags.map((x) => <option key={x.id} value={x.id}>{x.cliente_nome} · {fmtDate(x.criado_em)}</option>)}
+          </select>
+        )}
       </div>
-
-      {temEdicoes && !editMode && (
-        <div className="mb-4 rounded-lg bg-teal-50 border border-teal-200 px-3 py-2 text-xs text-teal-800 flex items-center gap-2">
-          <Edit3 className="w-3.5 h-3.5" /> Este relatório tem ajustes manuais. Use “Restaurar” para voltar ao texto gerado.
-        </div>
-      )}
 
       {risco && (
         <div className={`rounded-xl border p-4 mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 ${risco.faixa === "Alto" ? "bg-red-50 border-red-300" : risco.faixa === "Médio" ? "bg-amber-50 border-amber-300" : "bg-emerald-50 border-emerald-300"}`}>
@@ -268,39 +253,56 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
       </div>
 
       <div className="mb-5">
-        {editMode ? (
-          <>
-            <Label>Síntese</Label>
-            <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 resize-y" style={{ minHeight: 72 }} value={draft.sintese} onChange={(e) => setDraft((dr) => ({ ...dr, sintese: e.target.value }))} />
-          </>
-        ) : (
-          sinteseView && <p className="text-sm text-slate-600 leading-relaxed">{sinteseView}</p>
-        )}
+        {sinteseView && <p className="text-sm text-slate-600 leading-relaxed">{sinteseView}</p>}
         {horasTotais > 0 && (
           <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest text-slate-500"><Clock className="w-3.5 h-3.5" /> Esforço de implantação estimado: {horasTotais} h</p>
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 items-start">
-        {["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].map((v) => (
-          <div key={v} className={`rounded-xl border p-4 ${VEREDITOS[v].chip}`}>
-            <div className="text-3xl font-semibold">{dados.contagem[v] || 0}</div>
-            <div className="font-mono text-xs uppercase tracking-wider mt-1">{VEREDITOS[v].label}</div>
-            {notaEdit === v ? (
-              <div className="mt-2">
-                <textarea autoFocus className="w-full rounded border border-slate-300 bg-white/90 px-2 py-1 text-xs text-slate-800 outline-none resize-y" style={{ minHeight: 46 }} value={notaTxt} onChange={(e) => setNotaTxt(e.target.value)} placeholder="Nota para este grupo…" />
-                <div className="flex gap-2 mt-1">
-                  <button className="text-[11px] font-medium rounded bg-teal-700 text-white px-2 py-0.5" onClick={() => { salvarNota(v, notaTxt); setNotaEdit(null); }}>Salvar</button>
-                  <button className="text-[11px] text-slate-500 px-1" onClick={() => setNotaEdit(null)}>cancelar</button>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-4 mb-4 items-start">
+        {[
+          ...["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].map((v) => ({ key: "auto:" + v, veredito: v, count: dados.contagem[v] || 0, nota: notas[v], manual: false })),
+          ...((d?.cardsExtra || []).map((c) => ({ key: "extra:" + c.id, id: c.id, veredito: c.veredito, count: dados.contagem[c.veredito] || 0, nota: c.nota, manual: true }))),
+        ].map((card) => (
+          <div key={card.key} className="flex flex-col">
+            <div className={`rounded-xl border p-4 relative ${VEREDITOS[card.veredito].chip}`}>
+              {card.manual && <button onClick={() => removerCardExtra(card.id)} className="absolute top-1.5 right-1.5 opacity-60 hover:opacity-100" title="Remover card"><X className="w-3.5 h-3.5" /></button>}
+              <div className="text-3xl font-semibold">{card.count}</div>
+              <div className="font-mono text-xs uppercase tracking-wider mt-1">{VEREDITOS[card.veredito].label}</div>
+            </div>
+            <div className="mt-1.5">
+              {notaEdit === card.key ? (
+                <div>
+                  <textarea autoFocus className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 outline-none resize-y" style={{ minHeight: 46 }} value={notaTxt} onChange={(e) => setNotaTxt(e.target.value)} placeholder="Nota deste card…" />
+                  <div className="flex gap-2 mt-1">
+                    <button className="text-[11px] font-medium rounded bg-teal-700 text-white px-2 py-0.5" onClick={() => { salvarNotaCard(card, notaTxt); setNotaEdit(null); }}>Salvar</button>
+                    <button className="text-[11px] text-slate-500 px-1" onClick={() => setNotaEdit(null)}>cancelar</button>
+                  </div>
                 </div>
-              </div>
-            ) : notas[v] ? (
-              <div className="mt-2 text-xs text-slate-700 whitespace-pre-wrap cursor-pointer hover:opacity-80" onClick={() => { setNotaEdit(v); setNotaTxt(notas[v]); }} title="Editar nota">{notas[v]}</div>
-            ) : (
-              <button className="mt-2 text-[11px] font-mono uppercase tracking-wider text-slate-500 hover:text-teal-700 inline-flex items-center gap-1" onClick={() => { setNotaEdit(v); setNotaTxt(""); }}>+ nota</button>
-            )}
+              ) : card.nota ? (
+                <div className="text-xs text-slate-600 whitespace-pre-wrap bg-white border border-slate-200 rounded-lg px-2 py-1.5 cursor-pointer hover:border-teal-300" onClick={() => { setNotaEdit(card.key); setNotaTxt(card.nota); }} title="Editar nota">{card.nota}</div>
+              ) : (
+                <button className="text-[11px] font-mono uppercase tracking-wider text-slate-400 hover:text-teal-700 inline-flex items-center gap-1" onClick={() => { setNotaEdit(card.key); setNotaTxt(""); }}><Plus className="w-3 h-3" /> nota</button>
+              )}
+            </div>
           </div>
         ))}
+      </div>
+
+      <div className="mb-6">
+        {!addOpen ? (
+          <button className={btnGhost} onClick={() => setAddOpen(true)}><Plus className="w-4 h-4" /> Adicionar card</button>
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2">Novo card — escolha o tipo</div>
+            <div className="flex flex-wrap gap-2 items-center">
+              {["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].map((v) => (
+                <button key={v} onClick={() => { addCardExtra(v); setAddOpen(false); }} className={`text-xs font-mono uppercase tracking-wider rounded-full px-3 py-1.5 border ${VEREDITOS[v].chip} hover:opacity-80`}>{VEREDITOS[v].label}</button>
+              ))}
+              <button onClick={() => setAddOpen(false)} className="text-xs text-slate-400 px-2 hover:text-slate-600">cancelar</button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -334,11 +336,7 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
               </div>
               <div className="p-4">
                 <div className="font-mono text-[11px] uppercase tracking-widest text-teal-600 mb-1">Como podemos atender</div>
-                {editMode ? (
-                  <textarea className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 resize-y" style={{ minHeight: 60 }} value={draft.linhas?.[it.r.id]?.atende ?? comoAtendemos(it)} onChange={(e) => setLinhaDraft(it.r.id, e.target.value)} />
-                ) : (
-                  <div className="text-sm text-slate-700">{atendeView(it)}</div>
-                )}
+                <div className="text-sm text-slate-700">{atendeView(it)}</div>
                 {tarefasDe(it.f).length > 0 && (
                   <div className="mt-3 border-t border-slate-100 pt-2">
                     <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-1.5"><Clock className="w-3 h-3" /> Plano de implantação · {horasFunc(it.f)} h</div>
@@ -359,14 +357,10 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
         ))}
       </div>
 
-      {(editMode || obsView.trim()) && (
+      {obsView.trim() && (
         <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
           <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-1">Observações do consultor</div>
-          {editMode ? (
-            <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 resize-y" style={{ minHeight: 72 }} value={draft.obs} onChange={(e) => setDraft((dr) => ({ ...dr, obs: e.target.value }))} placeholder="Notas livres que entram no relatório e na cópia." />
-          ) : (
-            <p className="text-sm text-slate-700 whitespace-pre-wrap">{obsView}</p>
-          )}
+          <p className="text-sm text-slate-700 whitespace-pre-wrap">{obsView}</p>
         </div>
       )}
 
