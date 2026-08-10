@@ -141,12 +141,16 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport, openId, 
   };
 
   const escolher = (opcao) => {
+    if (opcao.anexo === "obrigatorio" && anexos.length === 0) { setErro("Esta resposta exige um anexo. Anexe ao menos um arquivo antes de selecioná-la."); return; }
+    setErro("");
     if (atualItem.tipo === "tecnica" && opcao.veredito === "rever") { setOutroAberto(true); return; }
     registrar(opcao, null);
   };
   const confirmarOutro = () => {
     if (!textoOutro.trim()) return;
-    registrar(pergunta.opcoes.find((o) => o.veredito === "rever"), textoOutro.trim());
+    const rev = pergunta.opcoes.find((o) => o.veredito === "rever");
+    if (rev?.anexo === "obrigatorio" && anexos.length === 0) { setErro("Esta resposta exige um anexo."); return; }
+    registrar(rev, textoOutro.trim());
   };
   const registrar = (opcao, outro) => {
     const nova = { id: uid(), diagnostico_id: sessao.id, pergunta_id: atualItem.pergunta_id, opcao_id: opcao.id, tipo: atualItem.tipo, texto_outro: outro, anexos: [...anexos], criado_em: nowISO() };
@@ -369,7 +373,8 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport, openId, 
   const escopoPuladas = filtroArea
     ? pendentes.filter((it) => it.tipo === "tecnica" && areaDe(it) === filtroArea && puladas.includes(it.pergunta_id))
     : pendentes.filter((it) => puladas.includes(it.pergunta_id));
-  const anexoFalta = !!(pergunta && pergunta.anexo === "obrigatorio" && anexos.length === 0);
+  const algumAnexo = !!(pergunta && pergunta.opcoes.some((o) => o.anexo && o.anexo !== "nao"));
+  const algumObrig = !!(pergunta && pergunta.opcoes.some((o) => o.anexo === "obrigatorio"));
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -381,7 +386,7 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport, openId, 
         <div className="flex items-center gap-3">
           {!emRevisao && novasDisponiveis > 0 && <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={incluirNovas}><Plus className="w-3 h-3" /> incluir {novasDisponiveis} nova{novasDisponiveis > 1 ? "s" : ""}</button>}
           {emRevisao && (
-            <button className={btnTeal + " !py-1.5"} onClick={() => { const id = sessao.id; setActiveId(null); goToReport(id); }}><FileText className="w-4 h-4" /> Voltar ao relatório</button>
+            <button className={btnTeal + " !py-1.5"} onClick={() => { const id = sessao.id; setActiveId(null); goToReport(id); }}><FileText className="w-4 h-4" /> Voltar ao pré-relatório</button>
           )}
         </div>
       </div>
@@ -464,16 +469,16 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport, openId, 
           <div className="space-y-3 pt-1">
             <div className="text-sm text-slate-800 bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-xs font-medium">{pergunta.texto}<span className="block text-xs font-normal text-slate-400 mt-0.5">{faseAtual}</span></div>
 
-            {pergunta.anexo && pergunta.anexo !== "nao" && (
+            {algumAnexo && (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Anexos · {pergunta.anexo === "obrigatorio" ? "obrigatório" : "opcional"}</span>
+                  <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Anexos {algumObrig ? "· algumas respostas exigem" : "· opcional"}</span>
                   <label className={btnGhost + " cursor-pointer !py-1.5"}>
                     <Paperclip className="w-4 h-4" /> Anexar
                     <input type="file" className="hidden" multiple accept="image/*,audio/*,.pdf" onChange={onSelecionarArquivos} />
                   </label>
                 </div>
-                <p className="text-[11px] text-slate-400">Documento, foto ou áudio como evidência — vai para o relatório.</p>
+                <p className="text-[11px] text-slate-400">Documento, foto ou áudio como evidência — vai para o pré-relatório.</p>
                 {subindo && <div className="text-xs text-slate-400 inline-flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> enviando…</div>}
                 {anexos.length > 0 && (
                   <ul className="space-y-1">
@@ -489,17 +494,19 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport, openId, 
                     })}
                   </ul>
                 )}
-                {anexoFalta && <p className="text-xs text-amber-600">Anexe ao menos um arquivo para responder esta pergunta.</p>}
               </div>
             )}
 
             {!outroAberto ? (
               <div className="grid gap-2">
                 {pergunta.opcoes.map((o) => (
-                  <button key={o.id} onClick={() => escolher(o)} disabled={anexoFalta}
-                    className={`text-left text-sm rounded-xl border px-4 py-2.5 transition flex items-center justify-between group ${anexoFalta ? "border-slate-200 opacity-40 cursor-not-allowed" : "border-slate-300 hover:border-teal-500 hover:bg-teal-50"}`}>
+                  <button key={o.id} onClick={() => escolher(o)}
+                    className="text-left text-sm rounded-xl border border-slate-300 px-4 py-2.5 hover:border-teal-500 hover:bg-teal-50 transition flex items-center justify-between group">
                     <span className="text-slate-700">{o.texto}</span>
-                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-600" />
+                    <span className="flex items-center gap-1.5">
+                      {o.anexo && o.anexo !== "nao" && <Paperclip className={`w-3.5 h-3.5 ${o.anexo === "obrigatorio" ? "text-amber-500" : "text-slate-300"}`} title={o.anexo === "obrigatorio" ? "Exige anexo" : "Permite anexo"} />}
+                      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-600" />
+                    </span>
                   </button>
                 ))}
               </div>
@@ -508,7 +515,7 @@ export default function Diagnostico({ base, diag, saveDiag, goToReport, openId, 
                 <Label>Descreva (obrigatório)</Label>
                 <textarea className={inputCls} autoFocus value={textoOutro} onChange={(e) => setTextoOutro(e.target.value)} placeholder="Como funciona no caso de vocês…" />
                 <div className="flex gap-2 mt-2">
-                  <button className={btnTeal} onClick={confirmarOutro} disabled={!textoOutro.trim() || anexoFalta}><Send className="w-4 h-4" /> Enviar</button>
+                  <button className={btnTeal} onClick={confirmarOutro} disabled={!textoOutro.trim()}><Send className="w-4 h-4" /> Enviar</button>
                   <button className={btnGhost} onClick={() => { setOutroAberto(false); setTextoOutro(""); }}>Voltar às opções</button>
                 </div>
               </div>

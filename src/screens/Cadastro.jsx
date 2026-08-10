@@ -29,8 +29,8 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
     if (f.como_atende) setShowDetalhes(true);
     setTarefas(Array.isArray(f.tarefas) ? f.tarefas.map((t) => ({ id: t.id, nome: t.nome || "", horas: t.horas ?? "", area: t.area || AREAS_CONSULTORIA[0] })) : []);
     const pg = base.perguntas.filter((p) => p.funcionalidade_id === f.id).map((p) => ({
-      texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar", anexo: p.anexo || "nao",
-      opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem).map((o) => ({ texto: o.texto, veredito: o.veredito })),
+      texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar",
+      opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem).map((o) => ({ texto: o.texto, veredito: o.veredito, anexo: o.anexo || "nao" })),
     }));
     setPerguntas(pg);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,8 +54,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       const novas = (out.perguntas || []).map((p) => ({
         texto: p.pergunta || p.texto || "",
         disposicao: "usar",
-        anexo: "nao",
-        opcoes: (p.opcoes || []).map((o) => ({ texto: o.texto || "", veredito: VEREDITOS[o.veredito] ? o.veredito : "rever" })),
+        opcoes: (p.opcoes || []).map((o) => ({ texto: o.texto || "", veredito: VEREDITOS[o.veredito] ? o.veredito : "rever", anexo: "nao" })),
       }));
       setPerguntas((cur) => [...cur, ...novas]);
     } catch (e) {
@@ -64,10 +63,10 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   };
 
   const addPerguntaManual = () =>
-    setPerguntas((p) => [...p, { texto: "", disposicao: "usar", anexo: "nao", opcoes: [{ texto: "", veredito: "atende" }, { texto: "Outro", veredito: "rever" }] }]);
+    setPerguntas((p) => [...p, { texto: "", disposicao: "usar", anexo: "nao", opcoes: [{ texto: "", veredito: "atende", anexo: "nao" }, { texto: "Outro", veredito: "rever", anexo: "nao" }] }]);
   const updPergunta = (i, patch) => setPerguntas((p) => p.map((q, k) => (k === i ? { ...q, ...patch } : q)));
   const updOpcao = (pi, oi, patch) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: q.opcoes.map((o, j) => (j === oi ? { ...o, ...patch } : o)) } : q)));
-  const addOpcao = (pi) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: [...q.opcoes, { texto: "", veredito: "atende" }] } : q)));
+  const addOpcao = (pi) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: [...q.opcoes, { texto: "", veredito: "atende", anexo: "nao" }] } : q)));
   const rmOpcao = (pi, oi) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: q.opcoes.filter((_, j) => j !== oi) } : q)));
   const rmPergunta = (i) => setPerguntas((p) => p.filter((_, k) => k !== i));
 
@@ -116,8 +115,8 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       opcoesArr = base.opcoes.filter((o) => !antigas.includes(o.pergunta_id));
       usaveis.forEach((p) => {
         const pid = uid();
-        perguntasArr.push({ id: pid, funcionalidade_id: fid, texto: p.texto.trim(), origem: "humano", status: p.disposicao === "usar" ? "aprovada" : "sugerida", motivo: "", avaliado_por: "consultor", anexo: p.anexo || "nao", criado_em: nowISO() });
-        p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, ordem: idx }));
+        perguntasArr.push({ id: pid, funcionalidade_id: fid, texto: p.texto.trim(), origem: "humano", status: p.disposicao === "usar" ? "aprovada" : "sugerida", motivo: "", avaliado_por: "consultor", criado_em: nowISO() });
+        p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, anexo: o.anexo || "nao", ordem: idx }));
       });
     } else {
       const fid = uid();
@@ -126,8 +125,8 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
       opcoesArr = [...base.opcoes];
       usaveis.forEach((p) => {
         const pid = uid();
-        perguntasArr.push({ id: pid, funcionalidade_id: fid, texto: p.texto.trim(), origem: "ia", status: p.disposicao === "usar" ? "aprovada" : "sugerida", motivo: "", avaliado_por: "consultor", anexo: p.anexo || "nao", criado_em: nowISO() });
-        p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, ordem: idx }));
+        perguntasArr.push({ id: pid, funcionalidade_id: fid, texto: p.texto.trim(), origem: "ia", status: p.disposicao === "usar" ? "aprovada" : "sugerida", motivo: "", avaliado_por: "consultor", criado_em: nowISO() });
+        p.opcoes.filter((o) => o.texto.trim()).forEach((o, idx) => opcoesArr.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), veredito: o.veredito, anexo: o.anexo || "nao", ordem: idx }));
       });
     }
     saveBase({ ...base, areas, funcionalidades, perguntas: perguntasArr, opcoes: opcoesArr });
@@ -257,21 +256,25 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
                     className={`text-xs font-mono uppercase tracking-wider rounded-full px-2.5 py-1 border transition ${p.disposicao === v ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-500 border-slate-300 hover:border-teal-400"}`}>{l}</button>
                 ))}
               </div>
-              <div className="flex items-center flex-wrap gap-1.5 mb-3">
-                <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mr-1">Anexo (evidência)</span>
-                {[["nao", "Não"], ["opcional", "Opcional"], ["obrigatorio", "Obrigatório"]].map(([v, l]) => (
-                  <button key={v} onClick={() => updPergunta(pi, { anexo: v })}
-                    className={`text-xs font-mono uppercase tracking-wider rounded-full px-2.5 py-1 border transition ${(p.anexo || "nao") === v ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-500 border-slate-300 hover:border-teal-400"}`}>{l}</button>
-                ))}
+              <div className="hidden sm:grid grid-cols-[1fr,90px,120px,32px] gap-2 px-1 mb-1">
+                <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Opção</span>
+                <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Veredito</span>
+                <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Anexo</span>
+                <span />
               </div>
               <div className="space-y-2">
                 {p.opcoes.map((o, oi) => (
-                  <div key={oi} className="flex items-center gap-2">
+                  <div key={oi} className="grid grid-cols-[1fr,90px,120px,32px] gap-2 items-center">
                     <input className={inputCls} placeholder="Texto da opção" value={o.texto} onChange={(e) => updOpcao(pi, oi, { texto: e.target.value })} />
                     <select className="rounded-lg border border-slate-300 px-2 py-2 text-xs font-mono outline-none focus:border-teal-500" value={o.veredito} onChange={(e) => updOpcao(pi, oi, { veredito: e.target.value })}>
                       {Object.keys(VEREDITOS).map((v) => <option key={v} value={v}>{VEREDITOS[v].short}</option>)}
                     </select>
-                    <button className="p-2 text-slate-400 hover:text-red-600" onClick={() => rmOpcao(pi, oi)}><X className="w-4 h-4" /></button>
+                    <select title="Exigir anexo nesta resposta?" className="rounded-lg border border-slate-300 px-2 py-2 text-xs outline-none focus:border-teal-500" value={o.anexo || "nao"} onChange={(e) => updOpcao(pi, oi, { anexo: e.target.value })}>
+                      <option value="nao">s/ anexo</option>
+                      <option value="opcional">opcional</option>
+                      <option value="obrigatorio">obrigatório</option>
+                    </select>
+                    <button className="p-2 text-slate-400 hover:text-red-600 justify-self-end" onClick={() => rmOpcao(pi, oi)}><X className="w-4 h-4" /></button>
                   </div>
                 ))}
                 <button className="text-xs text-teal-700 hover:underline inline-flex items-center gap-1" onClick={() => addOpcao(pi)}><Plus className="w-3 h-3" /> opção</button>

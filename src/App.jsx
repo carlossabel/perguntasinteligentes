@@ -13,7 +13,7 @@ const TABS = [
   { id: "diagnostico", label: "Rodar diagnóstico", icon: MessageSquare },
   { id: "assessment", label: "Cadastro de diagnóstico", icon: Gauge },
   { id: "cadastro", label: "Perguntas funcionalidade", icon: Sparkles },
-  { id: "relatorio", label: "Relatório", icon: FileText },
+  { id: "relatorio", label: "Pré-relatório", icon: FileText },
   { id: "plano", label: "Plano de projeto", icon: ListChecks },
   { id: "base", label: "Base", icon: Database },
   { id: "curadoria", label: "Curadoria", icon: ClipboardCheck },

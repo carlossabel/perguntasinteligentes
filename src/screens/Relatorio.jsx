@@ -34,6 +34,8 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
   const [copied, setCopied] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [draft, setDraft] = useState(null);
+  const [notaEdit, setNotaEdit] = useState(null);
+  const [notaTxt, setNotaTxt] = useState("");
   const diags = [...diag.diagnosticos].filter((x) => x.status !== "em_andamento").reverse();
   const d = diag.diagnosticos.find((x) => x.id === selectedId) || diags[0];
   const areaNome = (id) => base.areas.find((a) => a.id === id)?.nome || "—";
@@ -92,6 +94,14 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
     if (!(fid in vereditoPorFunc) || CRIT.indexOf(it.veredito) < CRIT.indexOf(vereditoPorFunc[fid])) vereditoPorFunc[fid] = it.veredito;
   });
   const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
+  const notas = d?.notasVeredito || {};
+  const salvarNota = (v, txt) => {
+    const nv = { ...notas, [v]: txt.trim() ? txt.trim() : undefined };
+    saveDiag && saveDiag({ ...diag, diagnosticos: diag.diagnosticos.map((x) => x.id === d.id ? { ...x, notasVeredito: nv } : x) });
+  };
+  const anexosIniciais = (diag.respostas || [])
+    .filter((r) => r.diagnostico_id === d.id && r.tipo === "inicial" && r.anexos && r.anexos.length)
+    .map((r) => ({ id: r.id, pergunta: (base.assessmentPerguntas || []).find((x) => x.id === r.pergunta_id)?.texto || "Pergunta inicial", anexos: r.anexos }));
   const oportunidades = (d?.oportunidades || []);
   const maturidade = d?.maturidade;
   const matFaixa = maturidade == null ? null
@@ -161,11 +171,8 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
     t += sinteseView + "\n";
     if (horasTotais > 0) t += `Esforço de implantação estimado: ${horasTotais} h\n`;
     if (matFaixa) t += `Maturidade do negócio: ${matFaixa.l} (${maturidade}/100)\n`;
-    if (oportunidades.length) {
-      t += `\nOPORTUNIDADES LEVANTADAS (perguntas iniciais)${d.maturidade != null ? ` · maturidade ${d.maturidade}/100` : ""}\n`;
-      oportunidades.forEach((fid) => (t += `  • ${funcNome(fid)} — ${cruzamentoLabel(vereditoPorFunc[fid])}\n`));
-    }
     t += `\nResumo: rever ${dados.contagem.rever} · não atende ${dados.contagem.gap} · customização ${dados.contagem.custom} · parcial ${dados.contagem.parcial} · parceira ${dados.contagem.parceira} · atende ${dados.contagem.atende} · já ok ${dados.contagem.ok}\n`;
+    ["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].forEach((v) => { if (notas[v]) t += `Nota (${VEREDITOS[v].label}): ${notas[v]}\n`; });
     if (dados.outros.length) {
       t += `\n— REVER (Outro) → volta para curadoria —\n`;
       dados.outros.forEach((it) => (t += `\n• ${it.f?.nome} [Rever]\n  Hoje: ${it.p?.texto} → Outro: ${it.r.texto_outro}\n`));
@@ -182,13 +189,21 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
       }
     });
     if (obsView.trim()) t += `\nOBSERVAÇÕES\n${obsView}\n`;
+    if (anexosIniciais.length) {
+      t += `\nEVIDÊNCIAS (perguntas iniciais)\n`;
+      anexosIniciais.forEach((e) => (t += `  • ${e.pergunta}: ${e.anexos.map((a) => a.nome).join(", ")}\n`));
+    }
+    if (oportunidades.length) {
+      t += `\nOPORTUNIDADES LEVANTADAS (perguntas iniciais)${d.maturidade != null ? ` · maturidade ${d.maturidade}/100` : ""}\n`;
+      oportunidades.forEach((fid) => (t += `  • ${funcNome(fid)} — ${cruzamentoLabel(vereditoPorFunc[fid])}\n`));
+    }
     navigator.clipboard?.writeText(t).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <SectionTitle sub={`${d.cliente_nome} · ${escopoLabel(d)} · ${fmtDate(d.criado_em)}`}>Relatório de aderência</SectionTitle>
+        <SectionTitle sub={`${d.cliente_nome} · ${escopoLabel(d)} · ${fmtDate(d.criado_em)}`}>Pré-relatório de aderência</SectionTitle>
         <div className="flex items-center gap-2">
           {diags.length > 1 && (
             <select className="rounded-lg border border-slate-300 px-2 py-2 text-sm max-w-xs" value={d.id} onChange={(e) => setSelectedId(e.target.value)}>
@@ -266,32 +281,24 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
         )}
       </div>
 
-      {oportunidades.length > 0 && (
-        <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4 mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-mono text-xs uppercase tracking-widest text-teal-700">Oportunidades levantadas · perguntas iniciais</h3>
-            {d.maturidade != null && <span className="text-xs text-slate-500">maturidade {d.maturidade}/100</span>}
-          </div>
-          <div className="space-y-1.5">
-            {oportunidades.map((fid) => {
-              const v = vereditoPorFunc[fid];
-              return (
-                <div key={fid} className="flex items-center gap-2 text-sm">
-                  {v ? <VeredictoChip v={v} /> : <span className="font-mono text-[11px] bg-slate-100 text-slate-400 rounded px-1.5 py-0.5">—</span>}
-                  <span className="text-slate-800 font-medium">{funcNome(fid)}</span>
-                  <span className="text-slate-500">· {cruzamentoLabel(v)}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 items-start">
         {["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].map((v) => (
           <div key={v} className={`rounded-xl border p-4 ${VEREDITOS[v].chip}`}>
             <div className="text-3xl font-semibold">{dados.contagem[v] || 0}</div>
             <div className="font-mono text-xs uppercase tracking-wider mt-1">{VEREDITOS[v].label}</div>
+            {notaEdit === v ? (
+              <div className="mt-2">
+                <textarea autoFocus className="w-full rounded border border-slate-300 bg-white/90 px-2 py-1 text-xs text-slate-800 outline-none resize-y" style={{ minHeight: 46 }} value={notaTxt} onChange={(e) => setNotaTxt(e.target.value)} placeholder="Nota para este grupo…" />
+                <div className="flex gap-2 mt-1">
+                  <button className="text-[11px] font-medium rounded bg-teal-700 text-white px-2 py-0.5" onClick={() => { salvarNota(v, notaTxt); setNotaEdit(null); }}>Salvar</button>
+                  <button className="text-[11px] text-slate-500 px-1" onClick={() => setNotaEdit(null)}>cancelar</button>
+                </div>
+              </div>
+            ) : notas[v] ? (
+              <div className="mt-2 text-xs text-slate-700 whitespace-pre-wrap cursor-pointer hover:opacity-80" onClick={() => { setNotaEdit(v); setNotaTxt(notas[v]); }} title="Editar nota">{notas[v]}</div>
+            ) : (
+              <button className="mt-2 text-[11px] font-mono uppercase tracking-wider text-slate-500 hover:text-teal-700 inline-flex items-center gap-1" onClick={() => { setNotaEdit(v); setNotaTxt(""); }}>+ nota</button>
+            )}
           </div>
         ))}
       </div>
@@ -360,6 +367,41 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
           ) : (
             <p className="text-sm text-slate-700 whitespace-pre-wrap">{obsView}</p>
           )}
+        </div>
+      )}
+
+      {anexosIniciais.length > 0 && (
+        <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2">Evidências · perguntas iniciais</div>
+          <div className="space-y-3">
+            {anexosIniciais.map((e) => (
+              <div key={e.id}>
+                <div className="text-sm text-slate-600">{e.pergunta}</div>
+                <Anexos lista={e.anexos} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {oportunidades.length > 0 && (
+        <div className="mt-5 rounded-xl border border-teal-200 bg-teal-50/50 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-mono text-xs uppercase tracking-widest text-teal-700">Oportunidades levantadas · perguntas iniciais</h3>
+            {d.maturidade != null && <span className="text-xs text-slate-500">maturidade {d.maturidade}/100</span>}
+          </div>
+          <div className="space-y-1.5">
+            {oportunidades.map((fid) => {
+              const v = vereditoPorFunc[fid];
+              return (
+                <div key={fid} className="flex items-center gap-2 text-sm">
+                  {v ? <VeredictoChip v={v} /> : <span className="font-mono text-[11px] bg-slate-100 text-slate-400 rounded px-1.5 py-0.5">—</span>}
+                  <span className="text-slate-800 font-medium">{funcNome(fid)}</span>
+                  <span className="text-slate-500">· {cruzamentoLabel(v)}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

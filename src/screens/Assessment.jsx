@@ -204,7 +204,7 @@ function CamposEmpresa({ base, saveBase }) {
 /* ---------------- Cadastro de perguntas macro ---------------- */
 function CadastroPerguntas({ base, saveBase, segId }) {
   const [texto, setTexto] = useState("");
-  const [opcoes, setOpcoes] = useState([{ texto: "", nivel: 4, oportunidades: [] }, { texto: "", nivel: 0, oportunidades: [] }]);
+  const [opcoes, setOpcoes] = useState([{ texto: "", nivel: 4, oportunidades: [], anexo: "nao" }, { texto: "", nivel: 0, oportunidades: [], anexo: "nao" }]);
   const [erro, setErro] = useState("");
   const [editId, setEditId] = useState(null);
   const formRef = useRef(null);
@@ -216,7 +216,7 @@ function CadastroPerguntas({ base, saveBase, segId }) {
 
   const updOp = (i, patch) => setOpcoes((o) => o.map((x, k) => (k === i ? { ...x, ...patch } : x)));
   const toggleOportunidade = (i, fid) => setOpcoes((o) => o.map((x, k) => k === i ? { ...x, oportunidades: x.oportunidades.includes(fid) ? x.oportunidades.filter((y) => y !== fid) : [...x.oportunidades, fid] } : x));
-  const addOp = () => setOpcoes((o) => [...o, { texto: "", nivel: 2, oportunidades: [] }]);
+  const addOp = () => setOpcoes((o) => [...o, { texto: "", nivel: 2, oportunidades: [], anexo: "nao" }]);
   const rmOp = (i) => setOpcoes((o) => o.filter((_, k) => k !== i));
 
   const salvar = () => {
@@ -228,20 +228,20 @@ function CadastroPerguntas({ base, saveBase, segId }) {
     if (editId) {
       const perguntasArr = base.assessmentPerguntas.map((p) => p.id === editId ? { ...p, texto: texto.trim(), origem: "humano" } : p);
       const semAntigas = base.assessmentOpcoes.filter((o) => o.pergunta_id !== editId);
-      const novasO = ops.map((o, idx) => ({ id: uid(), pergunta_id: editId, texto: o.texto.trim(), nivel: Number(o.nivel), oportunidades: o.oportunidades, ordem: idx }));
+      const novasO = ops.map((o, idx) => ({ id: uid(), pergunta_id: editId, texto: o.texto.trim(), nivel: Number(o.nivel), oportunidades: o.oportunidades, anexo: o.anexo || "nao", ordem: idx }));
       saveBase({ ...base, assessmentPerguntas: perguntasArr, assessmentOpcoes: [...semAntigas, ...novasO] });
     } else {
       const pid = uid();
       const novaP = { id: pid, segmento_id: segId, texto: texto.trim(), origem: "humano", ordem: perguntas.length };
-      const novasO = ops.map((o, idx) => ({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), nivel: Number(o.nivel), oportunidades: o.oportunidades, ordem: idx }));
+      const novasO = ops.map((o, idx) => ({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), nivel: Number(o.nivel), oportunidades: o.oportunidades, anexo: o.anexo || "nao", ordem: idx }));
       saveBase({ ...base, assessmentPerguntas: [...(base.assessmentPerguntas || []), novaP], assessmentOpcoes: [...(base.assessmentOpcoes || []), ...novasO] });
     }
     limparForm();
   };
-  const limparForm = () => { setTexto(""); setOpcoes([{ texto: "", nivel: 4, oportunidades: [] }, { texto: "", nivel: 0, oportunidades: [] }]); setEditId(null); };
+  const limparForm = () => { setTexto(""); setOpcoes([{ texto: "", nivel: 4, oportunidades: [], anexo: "nao" }, { texto: "", nivel: 0, oportunidades: [], anexo: "nao" }]); setEditId(null); };
   const editar = (p) => {
     setErro(""); setEditId(p.id); setTexto(p.texto);
-    setOpcoes(opcoesDe(p.id).map((o) => ({ texto: o.texto, nivel: o.nivel, oportunidades: [...(o.oportunidades || [])] })));
+    setOpcoes(opcoesDe(p.id).map((o) => ({ texto: o.texto, nivel: o.nivel, oportunidades: [...(o.oportunidades || [])], anexo: o.anexo || "nao" })));
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
   };
 
@@ -292,6 +292,11 @@ function CadastroPerguntas({ base, saveBase, segId }) {
                 <input className={inputCls} placeholder="Texto da opção" value={o.texto} onChange={(e) => updOp(i, { texto: e.target.value })} />
                 <select title="Grau de maturidade da resposta" className="rounded-lg border border-slate-300 px-2 py-2 text-xs outline-none focus:border-teal-500" style={{ minWidth: 150 }} value={o.nivel} onChange={(e) => updOp(i, { nivel: e.target.value })}>
                   {NIVEIS.map((n) => <option key={n.v} value={n.v}>{n.l}</option>)}
+                </select>
+                <select title="Exigir anexo nesta resposta?" className="rounded-lg border border-slate-300 px-2 py-2 text-xs outline-none focus:border-teal-500" value={o.anexo || "nao"} onChange={(e) => updOp(i, { anexo: e.target.value })}>
+                  <option value="nao">s/ anexo</option>
+                  <option value="opcional">anexo opcional</option>
+                  <option value="obrigatorio">anexo obrigatório</option>
                 </select>
                 <button className="p-2 text-slate-400 hover:text-red-600" onClick={() => rmOp(i)}><X className="w-4 h-4" /></button>
               </div>
