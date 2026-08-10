@@ -1,30 +1,9 @@
 import { useState, useMemo } from "react";
-import { ClipboardCheck, Plus, Check, X, Edit3, Clock, User, ListTodo } from "lucide-react";
-import { VEREDITOS, uid, nowISO, inputCls, btnTeal, btnGhost, VeredictoChip, Empty, SectionTitle } from "../ui.jsx";
+import { ClipboardCheck, Plus, Check, X, Edit3 } from "lucide-react";
+import { VEREDITOS, uid, inputCls, btnTeal, btnGhost, VeredictoChip, Empty, SectionTitle } from "../ui.jsx";
 
 // Vereditos que contam como "sinal" de produto (dor recorrente).
 const SINAL = ["gap", "parcial", "custom"];
-
-// Linha de tarefa sugerida na curadoria: edita nome/tempo/consultor, aprova ou recusa.
-function TarefaSugerida({ t, funcNome, onAprovar, onRecusar }) {
-  const [nome, setNome] = useState(t.nome);
-  const [tempo, setTempo] = useState(t.tempo ?? "");
-  const [consultor, setConsultor] = useState(t.consultor || "");
-  return (
-    <div className="rounded-xl border border-slate-200 p-3">
-      <div className="text-xs font-mono uppercase tracking-wider text-teal-700 mb-2">{funcNome} · {t.origem || "manual"}</div>
-      <div className="flex flex-wrap items-center gap-2">
-        <input className={inputCls + " py-1 flex-1 min-w-[10rem]"} value={nome} onChange={(e) => setNome(e.target.value)} />
-        <div className="flex items-center gap-1"><Clock className="w-4 h-4 text-slate-400" /><input type="number" min="0" className="w-16 rounded-lg border border-slate-300 px-2 py-1 text-sm" value={tempo} onChange={(e) => setTempo(e.target.value)} /></div>
-        <div className="flex items-center gap-1"><User className="w-4 h-4 text-slate-400" /><input className="w-36 rounded-lg border border-slate-300 px-2 py-1 text-sm" value={consultor} onChange={(e) => setConsultor(e.target.value)} /></div>
-      </div>
-      <div className="flex items-center gap-2 mt-2">
-        <button className={btnTeal} onClick={() => onAprovar({ nome: nome.trim(), tempo: Number(tempo) || 0, consultor: consultor.trim() })}><Check className="w-4 h-4" /> Aprovar (vira oficial)</button>
-        <button className="inline-flex items-center gap-1 rounded-lg border border-red-200 text-red-600 px-3 py-2 text-sm hover:bg-red-50" onClick={onRecusar}><X className="w-4 h-4" /> Recusar</button>
-      </div>
-    </div>
-  );
-}
 
 export default function Curadoria({ base, saveBase, diag }) {
   const [motivos, setMotivos] = useState({});
@@ -79,33 +58,9 @@ export default function Curadoria({ base, saveBase, diag }) {
     saveBase({ ...base, opcoes });
   };
 
-  // Tarefas sugeridas (mandadas para curadoria a partir do plano de projeto)
-  const tarefasSugeridas = base.tarefasSugeridas || [];
-  const aprovarTarefa = (t, v) => {
-    const ordem = (base.tarefas || []).filter((x) => x.funcionalidade_id === t.funcionalidade_id).length;
-    saveBase({
-      ...base,
-      tarefas: [...(base.tarefas || []), { id: uid(), funcionalidade_id: t.funcionalidade_id, nome: v.nome, tempo: v.tempo, consultor: v.consultor, ordem, criado_em: nowISO() }],
-      tarefasSugeridas: tarefasSugeridas.filter((x) => x.id !== t.id),
-    });
-  };
-  const recusarTarefa = (t) => saveBase({ ...base, tarefasSugeridas: tarefasSugeridas.filter((x) => x.id !== t.id) });
-
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <SectionTitle sub="A memória do sistema. O que você aprova, recusa (com motivo), promove e reclassifica aqui alimenta as próximas gerações da IA.">Curadoria</SectionTitle>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5"><ListTodo className="w-3.5 h-3.5" /> Tarefas sugeridas · vindas do plano de projeto ({tarefasSugeridas.length})</h3>
-        {tarefasSugeridas.length === 0
-          ? <Empty icon={ClipboardCheck} title="Nenhuma tarefa na fila" hint="No Plano de projeto, ao adicionar uma tarefa você pode mandá-la para cá e decidir depois se vira oficial." />
-          : <div className="space-y-3">
-            {tarefasSugeridas.map((t) => (
-              <TarefaSugerida key={t.id} t={t} funcNome={funcName(t.funcionalidade_id)}
-                onAprovar={(v) => aprovarTarefa(t, v)} onRecusar={() => recusarTarefa(t)} />
-            ))}
-          </div>}
-      </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
         <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-3">“Outros” recorrentes ({outros.length})</h3>
