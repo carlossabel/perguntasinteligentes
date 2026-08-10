@@ -1,20 +1,22 @@
 import { useState, useEffect } from "react";
-import { Sparkles, ClipboardCheck, MessageSquare, FileText, Database, Gauge, Loader2, AlertTriangle } from "lucide-react";
+import { Sparkles, ClipboardCheck, MessageSquare, FileText, Database, Gauge, Loader2, AlertTriangle, ListChecks } from "lucide-react";
 import { getBase, putBase, getDiag, putDiag } from "./api.js";
 import Assessment from "./screens/Assessment.jsx";
 import Cadastro from "./screens/Cadastro.jsx";
 import Curadoria from "./screens/Curadoria.jsx";
 import Diagnostico from "./screens/Diagnostico.jsx";
 import Relatorio from "./screens/Relatorio.jsx";
+import PlanoProjeto from "./screens/PlanoProjeto.jsx";
 import Base from "./screens/Base.jsx";
 
 const TABS = [
+  { id: "diagnostico", label: "Rodar diagnóstico", icon: MessageSquare },
   { id: "assessment", label: "Cadastro de diagnóstico", icon: Gauge },
   { id: "cadastro", label: "Perguntas funcionalidade", icon: Sparkles },
-  { id: "curadoria", label: "Curadoria", icon: ClipboardCheck },
-  { id: "diagnostico", label: "Diagnóstico", icon: MessageSquare },
   { id: "relatorio", label: "Relatório", icon: FileText },
+  { id: "plano", label: "Plano de projeto", icon: ListChecks },
   { id: "base", label: "Base", icon: Database },
+  { id: "curadoria", label: "Curadoria", icon: ClipboardCheck },
 ];
 
 export default function App() {
@@ -43,6 +45,7 @@ export default function App() {
   const saveDiag = async (next) => { setDiag(next); try { await putDiag(next); } catch (e) { console.error(e); } };
 
   const goToReport = (id) => { setReportId(id); setTab("relatorio"); };
+  const goToPlano = (id) => { setReportId(id); setTab("plano"); };
   const goEdit = (fid) => { setEditingFunc(fid); setTab("cadastro"); };
 
   if (erro) return (
@@ -88,7 +91,8 @@ export default function App() {
         {tab === "cadastro" && <Cadastro base={base} saveBase={saveBase} editing={editingFunc} clearEditing={() => setEditingFunc(null)} />}
         {tab === "curadoria" && <Curadoria base={base} saveBase={saveBase} diag={diag} />}
         {tab === "diagnostico" && <Diagnostico base={base} diag={diag} saveDiag={saveDiag} goToReport={goToReport} />}
-        {tab === "relatorio" && <Relatorio base={base} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} />}
+        {tab === "relatorio" && <Relatorio base={base} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} goToPlano={goToPlano} />}
+        {tab === "plano" && <PlanoProjeto base={base} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} />}
         {tab === "base" && <Base base={base} saveBase={saveBase} onEdit={goEdit} />}
       </main>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { FileText, Copy, Check, Edit3, Save, RotateCcw, Clock } from "lucide-react";
+import { FileText, Copy, Check, Edit3, Save, RotateCcw, Clock, ListChecks } from "lucide-react";
 import { VEREDITOS, VEREDITO_ORDER, fmtDate, btnTeal, btnGhost, VeredictoChip, Field, Label, Empty, SectionTitle } from "../ui.jsx";
 
 // Ordem das linhas técnicas: do mais crítico ao melhor. "Rever" aparece antes, em bloco próprio.
@@ -18,7 +18,7 @@ function comoAtendemos(it) {
   }
 }
 
-export default function Relatorio({ base, diag, saveDiag, selectedId, setSelectedId }) {
+export default function Relatorio({ base, diag, saveDiag, selectedId, setSelectedId, goToPlano }) {
   const [copied, setCopied] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [draft, setDraft] = useState(null);
@@ -191,6 +191,7 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
             </>
           )}
           {!editMode && temEdicoes && <button className={btnGhost} onClick={restaurar}><RotateCcw className="w-4 h-4" /> Restaurar</button>}
+          {!editMode && goToPlano && <button className={btnGhost} onClick={() => goToPlano(d.id)}><ListChecks className="w-4 h-4" /> Plano de projeto</button>}
           <button className={btnGhost} onClick={copiar} disabled={editMode}>{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}{copied ? "Copiado" : "Copiar"}</button>
         </div>
       </div>
