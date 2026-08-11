@@ -33,6 +33,15 @@ export async function generate(tema, areaId) {
   return r.json();
 }
 
+export async function generateAssessment(segmento) {
+  const r = await fetch("/api/generate-assessment", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ segmento }) });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    throw new Error(e.error || `HTTP ${r.status}`);
+  }
+  return r.json();
+}
+
 export async function uploadAnexo(file) {
   const q = new URLSearchParams({ nome: file.name || "arquivo", tipo: file.type || "application/octet-stream" });
   const r = await fetch(`/api/upload?${q.toString()}`, {

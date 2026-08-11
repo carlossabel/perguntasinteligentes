@@ -6,7 +6,7 @@ import "dotenv/config";
 
 import { load, save, DATA_FILE, UPLOAD_DIR } from "./db.js";
 import { seedBase } from "./seed.js";
-import { gerarComIA } from "./anthropic.js";
+import { gerarComIA, gerarAssessmentComIA } from "./anthropic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -125,6 +125,29 @@ app.post("/api/generate", async (req, res) => {
       model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
       apiKey,
     });
+    res.json(out);
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+// ---- Geração do questionário inicial do segmento (consultor sênior de indústria) ----
+app.post("/api/generate-assessment", async (req, res) => {
+  const { segmento } = req.body || {};
+  if (!segmento) return res.status(400).json({ error: "Informe o segmento." });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY não configurada no .env do servidor." });
+  const d = getData();
+  const funcs = (d.base.funcionalidades || []).map((f) => f.nome);
+  const norm = (s) => (s || "").trim().toLowerCase();
+  const byName = new Map((d.base.funcionalidades || []).map((f) => [norm(f.nome), f.id]));
+  try {
+    const out = await gerarAssessmentComIA({ segmento, funcs, model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6", apiKey });
+    // mapeia os nomes sugeridos em "acende" para ids reais de funcionalidades
+    out.perguntas.forEach((p) => p.opcoes.forEach((o) => {
+      o.oportunidades = (o.acende || []).map((n) => byName.get(norm(n))).filter(Boolean);
+      delete o.acende;
+    }));
     res.json(out);
   } catch (e) {
     res.status(502).json({ error: e.message });

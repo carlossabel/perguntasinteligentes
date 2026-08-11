@@ -61,3 +61,35 @@ export async function gerarComIA({ tema, recusadas, model, apiKey }) {
   }
   return out;
 }
+
+/* ---------- Geração do QUESTIONÁRIO INICIAL do segmento (consultor sênior de indústria) ---------- */
+const NIVEIS_VALIDOS = [0, 1, 2, 3, 4];
+function montarPromptAssessment(segmento, funcs) {
+  const listaFuncs = funcs && funcs.length ? funcs.map((f) => `- ${f}`).join("\n") : "(nenhuma cadastrada ainda)";
+  return `Você é um consultor SÊNIOR de ERP para INDÚSTRIA. Monte o QUESTIONÁRIO INICIAL (macro) de diagnóstico para o segmento "${segmento}".
+Comporte-se como um consultor sênior levantando COMO a indústria trabalha HOJE, percorrendo as principais áreas de uma indústria: comercial/vendas, engenharia/produto, PCP/planejamento, produção/chão de fábrica, estoque/almoxarifado, compras/suprimentos, expedição/logística, qualidade, manutenção, custos, fiscal, financeiro, contábil e RH.
+Gere de 6 a 10 perguntas de múltipla escolha sobre COMO a empresa faz HOJE (não sobre o software atual dela). Cada pergunta com 3 a 5 opções, ordenadas do MENOS maduro para o MAIS maduro.
+Cada opção tem um "nivel" de maturidade de 0 a 4 (0 = manual/imaturo; 4 = maduro, automatizado e integrado).
+Quando fizer sentido, preencha "acende" com os NOMES de funcionalidades (exatamente como aparecem na lista abaixo) que aquela resposta sinaliza como oportunidade. Use SOMENTE nomes desta lista; se nenhum se aplicar, use [].
+Funcionalidades cadastradas:
+${listaFuncs}
+
+Responda SOMENTE JSON válido, sem markdown, exatamente neste formato:
+{"perguntas":[{"pergunta":"","opcoes":[{"texto":"","nivel":0,"acende":[""]}]}]}`;
+}
+
+export async function gerarAssessmentComIA({ segmento, funcs, model, apiKey }) {
+  const texto = await callClaude({ prompt: montarPromptAssessment(segmento, funcs), model, apiKey, maxTokens: 3500 });
+  const out = extrairJSON(texto);
+  const perguntas = Array.isArray(out.perguntas) ? out.perguntas : [];
+  return {
+    perguntas: perguntas.map((p) => ({
+      pergunta: p.pergunta || p.texto || "",
+      opcoes: (p.opcoes || []).map((o) => ({
+        texto: o.texto || "",
+        nivel: NIVEIS_VALIDOS.includes(Number(o.nivel)) ? Number(o.nivel) : 2,
+        acende: Array.isArray(o.acende) ? o.acende.filter(Boolean) : [],
+      })),
+    })),
+  };
+}

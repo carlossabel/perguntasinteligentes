@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Gauge, Plus, Trash2, Check, X, ChevronRight, ChevronUp, ChevronDown, ListChecks, PencilLine, Play, Building2, Layers, Pause } from "lucide-react";
+import { Gauge, Plus, Trash2, Check, X, ChevronRight, ChevronUp, ChevronDown, ListChecks, PencilLine, Play, Building2, Layers, Pause, Sparkles, Loader2 } from "lucide-react";
 import { uid, nowISO, fmtDate, inputCls, btnTeal, btnGhost, Label, Empty, SectionTitle } from "../ui.jsx";
+import { generateAssessment } from "../api.js";
 
 const NIVEIS = [
   { v: 0, l: "Imaturo (0)" },
@@ -209,9 +210,43 @@ function CadastroPerguntas({ base, saveBase, segId }) {
   const [editId, setEditId] = useState(null);
   const formRef = useRef(null);
 
+  const segNome = (base.segmentos || []).find((s) => s.id === segId)?.nome || "";
+  const [sugerindo, setSugerindo] = useState(false);
+  const [sugestoes, setSugestoes] = useState(null);
+  const [erroIA, setErroIA] = useState("");
+  const sugerirIA = async () => {
+    setErroIA(""); setSugestoes(null); setSugerindo(true);
+    try {
+      const out = await generateAssessment(segNome || "Indústria");
+      setSugestoes(out.perguntas || []);
+    } catch (e) { setErroIA(e.message || "Falha ao gerar sugestões."); }
+    finally { setSugerindo(false); }
+  };
+  const adicionarSugestoes = () => {
+    if (!sugestoes || !sugestoes.length) return;
+    const novasP = []; const novasO = [];
+    let ordemP = perguntas.length;
+    sugestoes.forEach((p) => {
+      if (!p.pergunta || !p.pergunta.trim()) return;
+      const pid = uid();
+      novasP.push({ id: pid, segmento_id: segId, texto: p.pergunta.trim(), origem: "ia", ordem: ordemP++ });
+      (p.opcoes || []).filter((o) => o.texto && o.texto.trim()).forEach((o, idx) => {
+        novasO.push({ id: uid(), pergunta_id: pid, texto: o.texto.trim(), nivel: Number(o.nivel) || 0, oportunidades: Array.isArray(o.oportunidades) ? o.oportunidades : [], anexo: "nao", ordem: idx });
+      });
+    });
+    saveBase({ ...base, assessmentPerguntas: [...(base.assessmentPerguntas || []), ...novasP], assessmentOpcoes: [...(base.assessmentOpcoes || []), ...novasO] });
+    setSugestoes(null);
+  };
+
   const perguntas = (base.assessmentPerguntas || []).filter((p) => p.segmento_id === segId).sort((a, b) => a.ordem - b.ordem);
   const opcoesDe = (pid) => (base.assessmentOpcoes || []).filter((o) => o.pergunta_id === pid).sort((a, b) => a.ordem - b.ordem);
   const funcsDoSegmento = base.funcionalidades.filter((f) => (f.segmento_ids || []).includes(segId));
+  const outrasFuncs = base.funcionalidades.filter((f) => !(f.segmento_ids || []).includes(segId));
+  const funcsSelecionaveis = [...funcsDoSegmento, ...outrasFuncs];
+  const segLabelDaFunc = (f) => {
+    const nomes = (f.segmento_ids || []).map((id) => (base.segmentos || []).find((s) => s.id === id)?.nome).filter(Boolean);
+    return nomes.length ? nomes.join(", ") : "sem segmento";
+  };
   const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
 
   const updOp = (i, patch) => setOpcoes((o) => o.map((x, k) => (k === i ? { ...x, ...patch } : x)));
@@ -253,6 +288,49 @@ function CadastroPerguntas({ base, saveBase, segId }) {
 
   return (
     <div className="space-y-5">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs text-slate-500 max-w-md">A IA age como um consultor sênior de indústria e sugere um questionário inicial cobrindo todas as áreas (produção, PCP, estoque, fiscal, financeiro…). Você revisa antes de adicionar.</p>
+          <button className={btnTeal} onClick={sugerirIA} disabled={sugerindo || !segId}>
+            {sugerindo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} {sugerindo ? "Gerando…" : "Sugerir com IA"}
+          </button>
+        </div>
+        {erroIA && <div className="mt-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{erroIA}</div>}
+      </div>
+
+      {sugestoes && (
+        <div className="rounded-2xl border border-teal-300 bg-teal-50/40 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-teal-700" />
+            <h3 className="font-mono text-xs uppercase tracking-widest text-teal-700">Sugestão da IA · {sugestoes.length} pergunta(s)</h3>
+          </div>
+          {sugestoes.length === 0 ? <p className="text-sm text-slate-500">A IA não retornou perguntas. Tente novamente.</p>
+            : <div className="space-y-2">
+              {sugestoes.map((p, pi) => (
+                <div key={pi} className="rounded-xl border border-slate-200 bg-white p-3">
+                  <div className="text-sm font-medium text-slate-800">{p.pergunta}</div>
+                  <div className="mt-1.5 space-y-1">
+                    {(p.opcoes || []).map((o, oi) => (
+                      <div key={oi} className="flex items-center gap-2 text-xs text-slate-600">
+                        <span className="font-mono bg-slate-100 rounded px-1.5 py-0.5 whitespace-nowrap">{nivelLabel(o.nivel)}</span>
+                        <span className="flex-1">{o.texto}</span>
+                        {Array.isArray(o.oportunidades) && o.oportunidades.length > 0 && <span className="text-teal-700 shrink-0">acende: {o.oportunidades.map(funcNome).join(", ")}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>}
+          {sugestoes.length > 0 && (
+            <div className="flex items-center gap-2">
+              <button className={btnTeal} onClick={adicionarSugestoes}><Check className="w-4 h-4" /> Adicionar todas ao segmento</button>
+              <button className={btnGhost} onClick={() => setSugestoes(null)}>Descartar</button>
+            </div>
+          )}
+          <p className="text-[11px] text-slate-400">Depois de adicionar, ajuste os níveis e as funcionalidades que cada resposta acende na lista abaixo.</p>
+        </div>
+      )}
+
       {perguntas.length > 0 && (
         <div className="space-y-2">
           <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400">Perguntas do segmento ({perguntas.length})</h3>
@@ -301,14 +379,17 @@ function CadastroPerguntas({ base, saveBase, segId }) {
                 <button className="p-2 text-slate-400 hover:text-red-600" onClick={() => rmOp(i)}><X className="w-4 h-4" /></button>
               </div>
               <div>
-                <div className="text-xs text-slate-400 mb-1">Acende quais funcionalidades? {funcsDoSegmento.length === 0 && <span>— nenhuma cadastrada nesse segmento ainda</span>}</div>
+                <div className="text-xs text-slate-400 mb-1">Acende quais funcionalidades? {funcsSelecionaveis.length === 0 && <span>— nenhuma funcionalidade cadastrada ainda (cadastre em “Perguntas funcionalidade”)</span>}</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {funcsDoSegmento.map((f) => {
+                  {funcsSelecionaveis.map((f) => {
                     const on = o.oportunidades.includes(f.id);
+                    const fora = !(f.segmento_ids || []).includes(segId);
                     return (
                       <button key={f.id} onClick={() => toggleOportunidade(i, f.id)}
+                        title={fora ? `Funcionalidade de: ${segLabelDaFunc(f)}` : undefined}
                         className={`text-xs rounded-full px-2.5 py-1 border transition ${on ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-500 border-slate-300 hover:border-teal-400"}`}>
                         {on && <Check className="w-3 h-3 inline mr-1" />}{f.nome}
+                        {fora && <span className={`ml-1 ${on ? "text-teal-100" : "text-slate-400"}`}>· {segLabelDaFunc(f)}</span>}
                       </button>
                     );
                   })}
