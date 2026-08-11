@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from "react";
-import { ChevronLeft, ChevronRight, LayoutGrid, ListChecks } from "lucide-react";
-import { fmtDate, AREAS_CONSULTORIA, Empty, SectionTitle } from "../ui.jsx";
+import { ChevronLeft, ChevronRight, LayoutGrid, ListChecks, X, Video, MapPin, Calendar, Check } from "lucide-react";
+import { fmtDate, AREAS_CONSULTORIA, btnTeal, Empty, SectionTitle } from "../ui.jsx";
 
 const FASES = [
   { id: "backlog", label: "Backlog" },
@@ -10,7 +10,10 @@ const FASES = [
   { id: "concluido", label: "Concluído" },
 ];
 const FASE_DEFAULT = "backlog";
+const AGENDADO = "agendado";
 const faseIdx = (id) => Math.max(0, FASES.findIndex((f) => f.id === id));
+const MODO_LABEL = { remoto: "Remoto", inloco: "In-loco" };
+const fmtData = (s) => { if (!s) return ""; const p = s.split("-"); return p.length === 3 ? `${p[2]}/${p[1]}` : s; };
 
 export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId }) {
   const diags = [...diag.diagnosticos].filter((x) => x.status !== "em_andamento").reverse();
@@ -29,20 +32,21 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
       if (fid) fids.add(fid);
     });
     const fases = d.planoFases || {};
+    const ag = d.planoAgenda || {};
     const items = [];
     [...fids].forEach((fid) => {
       const f = base.funcionalidades.find((x) => x.id === fid);
       if (!f) return;
       (f.tarefas || []).forEach((t) => items.push({
         key: `${d.id}::${t.id}`, diagId: d.id, taskId: t.id, clienteNome: d.cliente_nome,
-        nome: t.nome, horas: Number(t.horas) || 0, area: t.area, funcNome: f.nome, fase: fases[t.id] || FASE_DEFAULT,
+        nome: t.nome, horas: Number(t.horas) || 0, area: t.area, funcNome: f.nome, fase: fases[t.id] || FASE_DEFAULT, agenda: ag[t.id] || null,
       }));
     });
     (d.tarefasExtra || []).forEach((t) => {
       const f = t.funcId ? base.funcionalidades.find((x) => x.id === t.funcId) : null;
       items.push({
         key: `${d.id}::${t.id}`, diagId: d.id, taskId: t.id, clienteNome: d.cliente_nome,
-        nome: t.nome, horas: Number(t.horas) || 0, area: t.area, funcNome: f ? f.nome : "Avulsa", extra: true, fase: fases[t.id] || FASE_DEFAULT,
+        nome: t.nome, horas: Number(t.horas) || 0, area: t.area, funcNome: f ? f.nome : "Avulsa", extra: true, fase: fases[t.id] || FASE_DEFAULT, agenda: ag[t.id] || null,
       });
     });
     return items;
@@ -64,7 +68,30 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
   const moverRel = (c, dir) => {
     const i = faseIdx(c.fase) + dir;
     if (i < 0 || i >= FASES.length) return;
+    if (FASES[i].id === AGENDADO) return abrirAgenda(c);
     mover(c.diagId, c.taskId, FASES[i].id);
+  };
+
+  // ---- Agendamento (ao entrar em "Agendado") ----
+  const [agendaModal, setAgendaModal] = useState(null); // { card, data, inicio, fim, modo }
+  const [agendaErro, setAgendaErro] = useState("");
+  const abrirAgenda = (card) => {
+    const dx = diag.diagnosticos.find((x) => x.id === card.diagId);
+    const a = (dx?.planoAgenda || {})[card.taskId] || {};
+    setAgendaModal({ card, data: a.data || "", inicio: a.inicio || "", fim: a.fim || "", modo: a.modo || "remoto" });
+    setAgendaErro("");
+  };
+  const confirmarAgenda = () => {
+    const m = agendaModal; if (!m) return;
+    if (!m.data) return setAgendaErro("Informe a data.");
+    if (m.inicio && m.fim && m.fim <= m.inicio) return setAgendaErro("O horário fim deve ser depois do início.");
+    const diagnosticos = diag.diagnosticos.map((x) => x.id === m.card.diagId ? {
+      ...x,
+      planoFases: { ...(x.planoFases || {}), [m.card.taskId]: AGENDADO },
+      planoAgenda: { ...(x.planoAgenda || {}), [m.card.taskId]: { data: m.data, inicio: m.inicio, fim: m.fim, modo: m.modo } },
+    } : x);
+    saveDiag && saveDiag({ ...diag, diagnosticos });
+    setAgendaModal(null);
   };
 
   const dragCard = useRef(null);
@@ -72,6 +99,7 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
   const onDrop = (faseId) => {
     const src = dragCard.current; dragCard.current = null; setOverFase(null);
     if (!src || src.fase === faseId) return;
+    if (faseId === AGENDADO) return abrirAgenda(src);
     mover(src.diagId, src.taskId, faseId);
   };
 
@@ -128,6 +156,14 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
                           <span className="font-mono text-[11px] text-slate-400">{c.horas} h</span>
                         </div>
                         <div className="text-[11px] text-slate-400 truncate mt-1">{modo === "area" ? c.clienteNome : c.funcNome}</div>
+                        {c.agenda && c.agenda.data && (
+                          <button onClick={() => abrirAgenda(c)} title="Editar agendamento"
+                            className="w-full mt-1.5 flex items-center gap-1.5 rounded-lg bg-teal-50 border border-teal-100 px-2 py-1 text-[11px] text-teal-800 hover:bg-teal-100">
+                            {c.agenda.modo === "inloco" ? <MapPin className="w-3 h-3 shrink-0" /> : <Video className="w-3 h-3 shrink-0" />}
+                            <span className="font-mono">{fmtData(c.agenda.data)}{c.agenda.inicio ? ` · ${c.agenda.inicio}` : ""}{c.agenda.fim ? `–${c.agenda.fim}` : ""}</span>
+                            <span className="ml-auto uppercase tracking-wider text-[9px]">{MODO_LABEL[c.agenda.modo] || ""}</span>
+                          </button>
+                        )}
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
                           <button disabled={i === 0} onClick={() => moverRel(c, -1)} title="Fase anterior"
                             className="p-1 text-slate-300 enabled:hover:text-teal-600 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
@@ -142,6 +178,50 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
               </div>
             );
           })}
+        </div>
+      )}
+
+      {agendaModal && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setAgendaModal(null)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl border border-slate-200 p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-1">
+              <Calendar className="w-4 h-4 text-teal-700" />
+              <h3 className="font-semibold text-slate-800">Agendar tarefa</h3>
+              <button className="ml-auto text-slate-400 hover:text-slate-700" onClick={() => setAgendaModal(null)}><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-sm text-slate-500 mb-3 truncate">{agendaModal.card.nome}</p>
+
+            <label className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Data</label>
+            <input type="date" className="w-full mt-1 mb-3 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500"
+              value={agendaModal.data} onChange={(e) => setAgendaModal((m) => ({ ...m, data: e.target.value }))} />
+
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div>
+                <label className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Início</label>
+                <input type="time" className="w-full mt-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500"
+                  value={agendaModal.inicio} onChange={(e) => setAgendaModal((m) => ({ ...m, inicio: e.target.value }))} />
+              </div>
+              <div>
+                <label className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Fim</label>
+                <input type="time" className="w-full mt-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500"
+                  value={agendaModal.fim} onChange={(e) => setAgendaModal((m) => ({ ...m, fim: e.target.value }))} />
+              </div>
+            </div>
+
+            <label className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Modalidade</label>
+            <div className="grid grid-cols-2 gap-2 mt-1 mb-4">
+              <button onClick={() => setAgendaModal((m) => ({ ...m, modo: "remoto" }))}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm ${agendaModal.modo === "remoto" ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}><Video className="w-4 h-4" /> Remoto</button>
+              <button onClick={() => setAgendaModal((m) => ({ ...m, modo: "inloco" }))}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm ${agendaModal.modo === "inloco" ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}><MapPin className="w-4 h-4" /> In-loco</button>
+            </div>
+
+            {agendaErro && <p className="text-xs text-red-600 mb-2">{agendaErro}</p>}
+            <div className="flex items-center gap-2">
+              <button className={btnTeal} onClick={confirmarAgenda}><Check className="w-4 h-4" /> Agendar</button>
+              <button className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100" onClick={() => setAgendaModal(null)}>Cancelar</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

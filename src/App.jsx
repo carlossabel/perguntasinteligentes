@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Sparkles, ClipboardCheck, MessageSquare, FileText, Database, Gauge, Loader2, AlertTriangle, ListChecks, LayoutGrid } from "lucide-react";
+import { Sparkles, ClipboardCheck, MessageSquare, FileText, Database, Gauge, Loader2, AlertTriangle, ListChecks, LayoutGrid, CalendarDays } from "lucide-react";
 import { getBase, putBase, getDiag, putDiag } from "./api.js";
 import Assessment from "./screens/Assessment.jsx";
 import Cadastro from "./screens/Cadastro.jsx";
@@ -8,6 +8,7 @@ import Diagnostico from "./screens/Diagnostico.jsx";
 import Relatorio from "./screens/Relatorio.jsx";
 import PlanoProjeto from "./screens/PlanoProjeto.jsx";
 import Kanban from "./screens/Kanban.jsx";
+import Agenda from "./screens/Agenda.jsx";
 import Base from "./screens/Base.jsx";
 
 const TABS = [
@@ -17,6 +18,7 @@ const TABS = [
   { id: "relatorio", label: "Pré-relatório", icon: FileText },
   { id: "plano", label: "Plano de projeto", icon: ListChecks },
   { id: "kanban", label: "Quadro (Kanban)", icon: LayoutGrid },
+  { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "base", label: "Base", icon: Database },
   { id: "curadoria", label: "Curadoria", icon: ClipboardCheck },
 ];
@@ -98,6 +100,7 @@ export default function App() {
         {tab === "relatorio" && <Relatorio base={base} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} goToPlano={goToPlano} goToDiagnostico={goToDiagnostico} />}
         {tab === "plano" && <PlanoProjeto base={base} saveBase={saveBase} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} />}
         {tab === "kanban" && <Kanban base={base} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} />}
+        {tab === "agenda" && <Agenda base={base} diag={diag} selectedId={reportId} setSelectedId={setReportId} />}
         {tab === "base" && <Base base={base} saveBase={saveBase} onEdit={goEdit} />}
       </main>
 
