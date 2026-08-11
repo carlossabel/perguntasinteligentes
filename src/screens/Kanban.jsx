@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from "react";
-import { ChevronLeft, ChevronRight, LayoutGrid, ListChecks, X, Video, MapPin, Calendar, Check } from "lucide-react";
-import { fmtDate, AREAS_CONSULTORIA, btnTeal, Empty, SectionTitle } from "../ui.jsx";
+import { ChevronLeft, ChevronRight, LayoutGrid, ListChecks, X, Video, MapPin, Calendar, Check, StickyNote, MessageSquare } from "lucide-react";
+import { fmtDate, AREAS_CONSULTORIA, btnTeal, VeredictoChip, Empty, SectionTitle } from "../ui.jsx";
 import { sequenciaTarefas, travaEfetiva } from "../planoSeq.js";
 
 const FASES = [
@@ -35,19 +35,22 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
     const fases = d.planoFases || {};
     const ag = d.planoAgenda || {};
     const items = [];
+    const notas = d.planoNotas || {};
     [...fids].forEach((fid) => {
       const f = base.funcionalidades.find((x) => x.id === fid);
       if (!f) return;
       (f.tarefas || []).forEach((t) => items.push({
-        key: `${d.id}::${t.id}`, diagId: d.id, taskId: t.id, clienteNome: d.cliente_nome,
+        key: `${d.id}::${t.id}`, diagId: d.id, taskId: t.id, funcId: fid, clienteNome: d.cliente_nome,
         nome: t.nome, horas: Number(t.horas) || 0, area: t.area, funcNome: f.nome, fase: fases[t.id] || FASE_DEFAULT, agenda: ag[t.id] || null,
+        nota: notas[t.id] || "", temNota: !!notas[t.id],
       }));
     });
     (d.tarefasExtra || []).forEach((t) => {
       const f = t.funcId ? base.funcionalidades.find((x) => x.id === t.funcId) : null;
       items.push({
-        key: `${d.id}::${t.id}`, diagId: d.id, taskId: t.id, clienteNome: d.cliente_nome,
+        key: `${d.id}::${t.id}`, diagId: d.id, taskId: t.id, funcId: t.funcId || null, clienteNome: d.cliente_nome,
         nome: t.nome, horas: Number(t.horas) || 0, area: t.area, funcNome: f ? f.nome : "Avulsa", extra: true, fase: fases[t.id] || FASE_DEFAULT, agenda: ag[t.id] || null,
+        nota: notas[t.id] || "", temNota: !!notas[t.id],
       });
     });
     return items;
@@ -77,6 +80,25 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
   const [agendaModal, setAgendaModal] = useState(null); // { card, data, inicio, fim, modo }
   const [agendaErro, setAgendaErro] = useState("");
   const [aviso, setAviso] = useState("");
+  const [detalhe, setDetalhe] = useState(null); // card clicado (popup de orientação)
+  // Perguntas/respostas do diagnóstico para a funcionalidade que gerou a tarefa.
+  const respostasDaFunc = (diagId, funcId) => {
+    if (!funcId) return [];
+    return diag.respostas.filter((r) => {
+      if (r.diagnostico_id !== diagId || r.tipo === "inicial") return false;
+      const p = base.perguntas.find((x) => x.id === r.pergunta_id);
+      return (r.funcionalidade_id || p?.funcionalidade_id) === funcId;
+    }).map((r, k) => {
+      const p = base.perguntas.find((x) => x.id === r.pergunta_id);
+      const o = base.opcoes.find((x) => x.id === r.opcao_id);
+      return {
+        id: r.id || `${r.pergunta_id}-${k}`,
+        pergunta: p?.texto || "—",
+        resposta: r.texto_outro ? `Outro: ${r.texto_outro}` : (o?.texto || "—"),
+        veredito: r.veredito || o?.veredito || "rever",
+      };
+    });
+  };
   // Regra de sequência: a tarefa anterior, se marcada como bloqueadora, precisa estar Concluída.
   const podeAgendar = (card) => {
     const dx = diag.diagnosticos.find((x) => x.id === card.diagId);
@@ -176,16 +198,17 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
                   {lista.map((c) => {
                     const i = faseIdx(c.fase);
                     return (
-                      <div key={c.key} draggable onDragStart={() => { dragCard.current = c; }}
-                        className="rounded-xl border border-slate-200 bg-white p-2.5 cursor-grab active:cursor-grabbing shadow-sm">
+                      <div key={c.key} draggable onDragStart={() => { dragCard.current = c; }} onClick={() => setDetalhe(c)}
+                        className="rounded-xl border border-slate-200 bg-white p-2.5 cursor-pointer active:cursor-grabbing shadow-sm hover:border-teal-300">
                         <div className="text-sm text-slate-800 leading-snug">{c.nome}</div>
                         <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                           <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500">{c.area}</span>
                           <span className="font-mono text-[11px] text-slate-400">{c.horas} h</span>
+                          {c.temNota && <span title="Tem nota do plano" className="inline-flex"><StickyNote className="w-3 h-3 text-amber-500" /></span>}
                         </div>
                         <div className="text-[11px] text-slate-400 truncate mt-1">{modo === "area" ? c.clienteNome : c.funcNome}</div>
                         {c.agenda && c.agenda.data && (
-                          <button onClick={() => abrirAgenda(c)} title="Editar agendamento"
+                          <button onClick={(e) => { e.stopPropagation(); abrirAgenda(c); }} title="Editar agendamento"
                             className="w-full mt-1.5 flex items-center gap-1.5 rounded-lg bg-teal-50 border border-teal-100 px-2 py-1 text-[11px] text-teal-800 hover:bg-teal-100">
                             {c.agenda.modo === "inloco" ? <MapPin className="w-3 h-3 shrink-0" /> : <Video className="w-3 h-3 shrink-0" />}
                             <span className="font-mono">{fmtData(c.agenda.data)}{c.agenda.inicio ? ` · ${c.agenda.inicio}` : ""}{c.agenda.fim ? `–${c.agenda.fim}` : ""}</span>
@@ -193,10 +216,10 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
                           </button>
                         )}
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                          <button disabled={i === 0} onClick={() => moverRel(c, -1)} title="Fase anterior"
+                          <button disabled={i === 0} onClick={(e) => { e.stopPropagation(); moverRel(c, -1); }} title="Fase anterior"
                             className="p-1 text-slate-300 enabled:hover:text-teal-600 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
                           <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400">{FASES[i].label}</span>
-                          <button disabled={i === FASES.length - 1} onClick={() => moverRel(c, 1)} title="Próxima fase"
+                          <button disabled={i === FASES.length - 1} onClick={(e) => { e.stopPropagation(); moverRel(c, 1); }} title="Próxima fase"
                             className="p-1 text-slate-300 enabled:hover:text-teal-600 disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
                         </div>
                       </div>
@@ -252,6 +275,68 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
           </div>
         </div>
       )}
+
+      {detalhe && (() => {
+        const qas = respostasDaFunc(detalhe.diagId, detalhe.funcId);
+        const func = detalhe.funcId ? base.funcionalidades.find((x) => x.id === detalhe.funcId) : null;
+        return (
+          <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setDetalhe(null)}>
+            <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white shadow-xl border border-slate-200 p-5" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start gap-2 mb-1">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-slate-800">{detalhe.nome}</h3>
+                  <div className="flex items-center gap-2 flex-wrap mt-1">
+                    <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500">{detalhe.area}</span>
+                    <span className="font-mono text-[11px] text-slate-400">{detalhe.horas} h</span>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400">{FASES[faseIdx(detalhe.fase)].label}</span>
+                    <span className="text-[11px] text-slate-400">· {detalhe.clienteNome}</span>
+                  </div>
+                </div>
+                <button className="ml-auto text-slate-400 hover:text-slate-700 shrink-0" onClick={() => setDetalhe(null)}><X className="w-4 h-4" /></button>
+              </div>
+
+              <div className="mt-3 rounded-xl border border-slate-200 p-3">
+                <div className="font-mono text-[11px] uppercase tracking-widest text-teal-700 mb-1">Funcionalidade</div>
+                <div className="text-sm text-slate-800 font-medium">{func ? func.nome : "Tarefa avulsa (sem funcionalidade)"}</div>
+                {func?.como_atende && <div className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{func.como_atende}</div>}
+              </div>
+
+              {detalhe.agenda && detalhe.agenda.data && (
+                <div className="mt-3 flex items-center gap-2 rounded-xl bg-teal-50 border border-teal-100 px-3 py-2 text-sm text-teal-800">
+                  {detalhe.agenda.modo === "inloco" ? <MapPin className="w-4 h-4" /> : <Video className="w-4 h-4" />}
+                  <span className="font-mono">{fmtData(detalhe.agenda.data)}{detalhe.agenda.inicio ? ` · ${detalhe.agenda.inicio}` : ""}{detalhe.agenda.fim ? `–${detalhe.agenda.fim}` : ""}</span>
+                  <span className="ml-auto uppercase tracking-wider text-[10px] font-mono">{MODO_LABEL[detalhe.agenda.modo] || ""}</span>
+                </div>
+              )}
+
+              <div className="mt-4">
+                <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2"><MessageSquare className="w-3.5 h-3.5" /> Respostas do diagnóstico</div>
+                {qas.length === 0 ? <p className="text-sm text-slate-400">Sem respostas registradas para esta funcionalidade.</p>
+                  : <div className="space-y-2">
+                    {qas.map((q) => (
+                      <div key={q.id} className="rounded-lg border border-slate-200 p-3">
+                        <div className="flex items-start gap-2">
+                          <VeredictoChip v={q.veredito} />
+                          <div className="min-w-0">
+                            <div className="text-sm text-slate-700">{q.pergunta}</div>
+                            <div className="text-sm text-slate-900 font-medium mt-0.5">→ {q.resposta}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>}
+              </div>
+
+              <div className="mt-4">
+                <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2"><StickyNote className="w-3.5 h-3.5" /> Nota do plano</div>
+                {detalhe.nota
+                  ? <div className="rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2 text-sm text-slate-700 whitespace-pre-wrap">{detalhe.nota}</div>
+                  : <p className="text-sm text-slate-400">Nenhuma nota adicionada para esta tarefa no Plano de projeto.</p>}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
