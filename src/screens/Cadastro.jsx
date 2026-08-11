@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Sparkles, Plus, Trash2, Check, X, Loader2, AlertTriangle, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
+import { Sparkles, Plus, Trash2, Check, X, Loader2, AlertTriangle, ChevronDown, ChevronRight, GripVertical, Lock } from "lucide-react";
 import { VEREDITOS, AREAS_CONSULTORIA, uid, slug, nowISO, inputCls, btnTeal, btnGhost, Label, SectionTitle } from "../ui.jsx";
 import { generate } from "../api.js";
 
@@ -27,7 +27,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
     setAreaId(f.area_id);
     setComoAtende(f.como_atende || "");
     if (f.como_atende) setShowDetalhes(true);
-    setTarefas(Array.isArray(f.tarefas) ? f.tarefas.map((t) => ({ id: t.id, nome: t.nome || "", horas: t.horas ?? "", area: t.area || AREAS_CONSULTORIA[0] })) : []);
+    setTarefas(Array.isArray(f.tarefas) ? f.tarefas.map((t) => ({ id: t.id, nome: t.nome || "", horas: t.horas ?? "", area: t.area || AREAS_CONSULTORIA[0], trava: !!t.trava })) : []);
     const pg = base.perguntas.filter((p) => p.funcionalidade_id === f.id).map((p) => ({
       id: p.id, texto: p.texto, disposicao: p.status === "aprovada" ? "usar" : "curar",
       opcoes: base.opcoes.filter((o) => o.pergunta_id === p.id).sort((a, b) => a.ordem - b.ordem).map((o) => ({ id: o.id, texto: o.texto, veredito: o.veredito, anexo: o.anexo || "nao" })),
@@ -70,7 +70,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
   const rmOpcao = (pi, oi) => setPerguntas((p) => p.map((q, k) => (k === pi ? { ...q, opcoes: q.opcoes.filter((_, j) => j !== oi) } : q)));
   const rmPergunta = (i) => setPerguntas((p) => p.filter((_, k) => k !== i));
 
-  const addTarefa = () => setTarefas((t) => [...t, { id: uid(), nome: "", horas: "", area: AREAS_CONSULTORIA[0] }]);
+  const addTarefa = () => setTarefas((t) => [...t, { id: uid(), nome: "", horas: "", area: AREAS_CONSULTORIA[0], trava: false }]);
   const updTarefa = (i, patch) => setTarefas((t) => t.map((x, k) => (k === i ? { ...x, ...patch } : x)));
   const rmTarefa = (i) => setTarefas((t) => t.filter((_, k) => k !== i));
   const totalHoras = tarefas.reduce((s, t) => s + (Number(t.horas) || 0), 0);
@@ -104,7 +104,7 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
     const usaveis = perguntas.filter((p) => p.disposicao !== "descartar" && p.texto.trim());
     const tarefasLimpa = tarefas
       .filter((t) => t.nome.trim())
-      .map((t) => ({ id: t.id || uid(), nome: t.nome.trim(), horas: Number(t.horas) || 0, area: t.area || AREAS_CONSULTORIA[0] }));
+      .map((t) => ({ id: t.id || uid(), nome: t.nome.trim(), horas: Number(t.horas) || 0, area: t.area || AREAS_CONSULTORIA[0], trava: !!t.trava }));
     let funcionalidades, perguntasArr, opcoesArr;
 
     if (editing) {
@@ -201,17 +201,18 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
 
         {tarefas.length > 0 && (
           <>
-            <div className="hidden sm:grid grid-cols-[20px,1fr,96px,200px,32px] gap-2 mt-3 mb-1 px-1">
+            <div className="hidden sm:grid grid-cols-[20px,1fr,96px,200px,110px,32px] gap-2 mt-3 mb-1 px-1">
               <span />
               <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Tarefa</span>
               <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Horas</span>
               <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Área da consultoria</span>
+              <span className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Trava</span>
               <span />
             </div>
             <div className="space-y-2">
               {tarefas.map((t, i) => (
                 <div key={t.id || i} onDragOver={(e) => e.preventDefault()} onDrop={() => reordenarTarefa(i)}
-                  className="grid grid-cols-1 sm:grid-cols-[20px,1fr,96px,200px,32px] gap-2 sm:items-center rounded-lg">
+                  className="grid grid-cols-1 sm:grid-cols-[20px,1fr,96px,200px,110px,32px] gap-2 sm:items-center rounded-lg">
                   <span draggable onDragStart={() => { dragTarefa.current = i; }}
                     className="hidden sm:flex items-center justify-center text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing" title="Arraste para reordenar">
                     <GripVertical className="w-4 h-4" />
@@ -221,6 +222,11 @@ export default function Cadastro({ base, saveBase, editing, clearEditing }) {
                   <select className={inputCls} value={t.area} onChange={(e) => updTarefa(i, { area: e.target.value })}>
                     {AREAS_CONSULTORIA.map((a) => <option key={a} value={a}>{a}</option>)}
                   </select>
+                  <button type="button" onClick={() => updTarefa(i, { trava: !t.trava })}
+                    title={t.trava ? "Obrigatória concluir antes de agendar a próxima da sequência (clique para desmarcar)" : "Marcar: precisa estar concluída para agendar a próxima da sequência"}
+                    className={"inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-[10px] font-mono uppercase tracking-wider " + (t.trava ? "border-teal-300 bg-teal-50 text-teal-700" : "border-slate-200 text-slate-400 hover:bg-slate-50")}>
+                    <Lock className="w-3.5 h-3.5" /> {t.trava ? "trava" : "livre"}
+                  </button>
                   <button className="p-2 text-slate-400 hover:text-red-600 justify-self-end" onClick={() => rmTarefa(i)}><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}

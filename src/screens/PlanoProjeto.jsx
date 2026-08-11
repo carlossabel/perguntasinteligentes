@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ListChecks, GripVertical, Save, Check, Clock, Plus, Send, Trash2, StickyNote, Lock } from "lucide-react";
 import { fmtDate, btnTeal, btnGhost, inputCls, uid, AREAS_CONSULTORIA, VeredictoChip, Empty, SectionTitle } from "../ui.jsx";
+import { travaEfetiva, travaBase } from "../planoSeq.js";
 
 // Do mais crítico ao melhor — define a ordem inicial das funcionalidades/áreas no plano.
 const ORDEM_TECNICA = ["gap", "custom", "parcial", "parceira", "atende", "ok"];
@@ -192,12 +193,13 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
   };
 
   // ---- Bloqueio de sequência: tarefa que precisa estar Concluída para agendar a próxima ----
-  const planoBloqueio = d?.planoBloqueio || {};
   const toggleBloqueio = (taskId) => {
+    const baseT = travaBase(base, d, taskId);
+    const novo = !travaEfetiva(base, d, taskId);
     const diagnosticos = diag.diagnosticos.map((x) => {
       if (x.id !== d.id) return x;
       const b = { ...(x.planoBloqueio || {}) };
-      if (b[taskId]) delete b[taskId]; else b[taskId] = true;
+      if (novo === baseT) delete b[taskId]; else b[taskId] = novo; // só guarda override quando diverge do Cadastro
       return { ...x, planoBloqueio: b };
     });
     saveDiag && saveDiag({ ...diag, diagnosticos });
@@ -310,9 +312,9 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
                               <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500 whitespace-nowrap shrink-0">{it.area}</span>
                               <span className="font-mono text-xs text-slate-500 whitespace-nowrap shrink-0">{it.horas} h</span>
                               <button onClick={() => toggleBloqueio(it.taskId)}
-                                title={planoBloqueio[it.taskId] ? "Obrigatória concluir antes de agendar a próxima da sequência (clique para desmarcar)" : "Marcar: precisa estar concluída para agendar a próxima da sequência"}
-                                className={"inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider shrink-0 " + (planoBloqueio[it.taskId] ? "border-teal-300 bg-teal-50 text-teal-700" : "border-slate-200 text-slate-300 hover:text-slate-500 hover:bg-slate-50")}>
-                                <Lock className="w-3 h-3" /> {planoBloqueio[it.taskId] ? "trava a próxima" : "trava"}
+                                title={travaEfetiva(base, d, it.taskId) ? "Obrigatória concluir antes de agendar a próxima da sequência (clique para desmarcar)" : "Marcar: precisa estar concluída para agendar a próxima da sequência"}
+                                className={"inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider shrink-0 " + (travaEfetiva(base, d, it.taskId) ? "border-teal-300 bg-teal-50 text-teal-700" : "border-slate-200 text-slate-300 hover:text-slate-500 hover:bg-slate-50")}>
+                                <Lock className="w-3 h-3" /> {travaEfetiva(base, d, it.taskId) ? "trava a próxima" : "trava"}
                               </button>
                               <button onClick={() => (notaEdit === it.taskId ? setNotaEdit(null) : abrirNota(it.taskId))}
                                 title={planoNotas[it.taskId] ? "Editar nota" : "Adicionar nota"}

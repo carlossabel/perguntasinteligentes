@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { ChevronLeft, ChevronRight, LayoutGrid, ListChecks, X, Video, MapPin, Calendar, Check } from "lucide-react";
 import { fmtDate, AREAS_CONSULTORIA, btnTeal, Empty, SectionTitle } from "../ui.jsx";
-import { sequenciaTarefas } from "../planoSeq.js";
+import { sequenciaTarefas, travaEfetiva } from "../planoSeq.js";
 
 const FASES = [
   { id: "backlog", label: "Backlog" },
@@ -85,7 +85,7 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
     const i = seq.indexOf(card.taskId);
     if (i <= 0) return { ok: true };
     const prevId = seq[i - 1];
-    if (!(dx.planoBloqueio || {})[prevId]) return { ok: true };
+    if (!travaEfetiva(base, dx, prevId)) return { ok: true };
     if (((dx.planoFases || {})[prevId] || FASE_DEFAULT) === "concluido") return { ok: true };
     const prevNome = tarefasDoDiag(dx).find((c) => c.taskId === prevId)?.nome || "a anterior";
     return { ok: false, prevNome };

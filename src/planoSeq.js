@@ -4,6 +4,21 @@ const ORDEM_TECNICA = ["gap", "custom", "parcial", "parceira", "atende", "ok"];
 const idxVer = (v) => { const i = ORDEM_TECNICA.indexOf(v); return i === -1 ? 99 : i; };
 const AVULSAS = "__avulsas__";
 
+// Trava efetiva de uma tarefa: override do diagnóstico (planoBloqueio) se existir, senão o padrão
+// definido no Cadastro (t.trava) — vale para tarefas de funcionalidade e avulsas do projeto.
+export function travaBase(base, d, taskId) {
+  for (const f of base.funcionalidades) {
+    const t = (f.tarefas || []).find((x) => x.id === taskId);
+    if (t) return !!t.trava;
+  }
+  const e = ((d && d.tarefasExtra) || []).find((x) => x.id === taskId);
+  return e ? !!e.trava : false;
+}
+export function travaEfetiva(base, d, taskId) {
+  const ov = ((d && d.planoBloqueio) || {})[taskId];
+  return ov === undefined ? travaBase(base, d, taskId) : !!ov;
+}
+
 export function sequenciaTarefas(base, diag, d) {
   if (!d) return [];
   const rs = diag.respostas.filter((r) => r.diagnostico_id === d.id && r.tipo !== "inicial");
