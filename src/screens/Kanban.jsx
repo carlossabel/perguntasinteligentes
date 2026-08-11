@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { ChevronLeft, ChevronRight, LayoutGrid, ListChecks, X, Video, MapPin, Calendar, Check } from "lucide-react";
 import { fmtDate, AREAS_CONSULTORIA, btnTeal, Empty, SectionTitle } from "../ui.jsx";
+import { sequenciaTarefas } from "../planoSeq.js";
 
 const FASES = [
   { id: "backlog", label: "Backlog" },
@@ -68,13 +69,36 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
   const moverRel = (c, dir) => {
     const i = faseIdx(c.fase) + dir;
     if (i < 0 || i >= FASES.length) return;
-    if (FASES[i].id === AGENDADO) return abrirAgenda(c);
+    if (FASES[i].id === AGENDADO) return tentarAgendar(c);
     mover(c.diagId, c.taskId, FASES[i].id);
   };
 
   // ---- Agendamento (ao entrar em "Agendado") ----
   const [agendaModal, setAgendaModal] = useState(null); // { card, data, inicio, fim, modo }
   const [agendaErro, setAgendaErro] = useState("");
+  const [aviso, setAviso] = useState("");
+  // Regra de sequência: a tarefa anterior, se marcada como bloqueadora, precisa estar Concluída.
+  const podeAgendar = (card) => {
+    const dx = diag.diagnosticos.find((x) => x.id === card.diagId);
+    if (!dx) return { ok: true };
+    const seq = sequenciaTarefas(base, diag, dx);
+    const i = seq.indexOf(card.taskId);
+    if (i <= 0) return { ok: true };
+    const prevId = seq[i - 1];
+    if (!(dx.planoBloqueio || {})[prevId]) return { ok: true };
+    if (((dx.planoFases || {})[prevId] || FASE_DEFAULT) === "concluido") return { ok: true };
+    const prevNome = tarefasDoDiag(dx).find((c) => c.taskId === prevId)?.nome || "a anterior";
+    return { ok: false, prevNome };
+  };
+  const tentarAgendar = (card) => {
+    const chk = podeAgendar(card);
+    if (!chk.ok) {
+      setAviso(`Não dá para agendar “${card.nome}”: a tarefa anterior da sequência “${chk.prevNome}” precisa estar como Concluída.`);
+      setTimeout(() => setAviso(""), 6000);
+      return;
+    }
+    abrirAgenda(card);
+  };
   const abrirAgenda = (card) => {
     const dx = diag.diagnosticos.find((x) => x.id === card.diagId);
     const a = (dx?.planoAgenda || {})[card.taskId] || {};
@@ -99,7 +123,7 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
   const onDrop = (faseId) => {
     const src = dragCard.current; dragCard.current = null; setOverFase(null);
     if (!src || src.fase === faseId) return;
-    if (faseId === AGENDADO) return abrirAgenda(src);
+    if (faseId === AGENDADO) return tentarAgendar(src);
     mover(src.diagId, src.taskId, faseId);
   };
 
@@ -129,6 +153,10 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
           )}
         </div>
       </div>
+
+      {aviso && (
+        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{aviso}</div>
+      )}
 
       {cards.length === 0 ? (
         <Empty icon={LayoutGrid} title="Nenhuma tarefa neste recorte"
