@@ -37,14 +37,37 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
         nome: t.nome, horas: Number(t.horas) || 0, area: t.area,
       }));
     });
-    // Tarefas avulsas: adicionadas direto neste projeto (não vivem na base).
-    (d.tarefasExtra || []).forEach((t) => itens.push({
-      taskId: t.id, funcId: null, funcNome: "Avulsas", veredito: null, avulsa: true,
-      areaId: AVULSAS, areaNome: "Tarefas avulsas",
-      nome: t.nome, horas: Number(t.horas) || 0, area: t.area,
-    }));
+    // Tarefas do projeto (não vivem na base). Podem apontar para uma funcionalidade (funcId) ou serem avulsas.
+    (d.tarefasExtra || []).forEach((t) => {
+      if (t.funcId) {
+        const f = base.funcionalidades.find((x) => x.id === t.funcId);
+        itens.push({
+          taskId: t.id, funcId: t.funcId, funcNome: f?.nome || "—", veredito: funcMap.get(t.funcId)?.veredito ?? null,
+          areaId: f?.area_id || AVULSAS, areaNome: f ? areaNome(f.area_id) : "Tarefas avulsas",
+          nome: t.nome, horas: Number(t.horas) || 0, area: t.area, extra: true,
+        });
+      } else {
+        itens.push({
+          taskId: t.id, funcId: null, funcNome: "Avulsas", veredito: null, avulsa: true, extra: true,
+          areaId: AVULSAS, areaNome: "Tarefas avulsas",
+          nome: t.nome, horas: Number(t.horas) || 0, area: t.area,
+        });
+      }
+    });
     return itens;
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d, diag.respostas, base]);
+
+  // Funcionalidades presentes neste diagnóstico (para escolher onde a tarefa nova entra).
+  const funcsNoPlano = useMemo(() => {
+    if (!d) return [];
+    const ids = new Set();
+    diag.respostas.filter((r) => r.diagnostico_id === d.id && r.tipo !== "inicial").forEach((r) => {
+      const p = base.perguntas.find((x) => x.id === r.pergunta_id);
+      const fid = r.funcionalidade_id || p?.funcionalidade_id;
+      if (fid) ids.add(fid);
+    });
+    return base.funcionalidades.filter((f) => ids.has(f.id));
   }, [d, diag.respostas, base]);
 
   // Ordenações salvas: por área (ordem das funcionalidades) e por funcionalidade (ordem das tarefas).
@@ -120,13 +143,13 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
   };
 
   // ---- Adicionar tarefa ao plano ----
-  const [nova, setNova] = useState({ nome: "", horas: "", area: AREAS_CONSULTORIA[0] });
+  const [nova, setNova] = useState({ nome: "", horas: "", area: AREAS_CONSULTORIA[0], funcId: "" });
   const [aviso, setAviso] = useState("");
   const flash = (m) => { setAviso(m); setTimeout(() => setAviso(""), 3500); };
-  const resetNova = () => setNova({ nome: "", horas: "", area: AREAS_CONSULTORIA[0] });
-  const tarefaObj = () => ({ id: uid(), nome: nova.nome.trim(), horas: Number(nova.horas) || 0, area: nova.area });
+  const resetNova = () => setNova({ nome: "", horas: "", area: AREAS_CONSULTORIA[0], funcId: "" });
+  const tarefaObj = () => ({ id: uid(), nome: nova.nome.trim(), horas: Number(nova.horas) || 0, area: nova.area, funcId: nova.funcId || null });
 
-  // Destino: só neste projeto (vive no diagnóstico, como tarefa avulsa).
+  // Destino: só neste projeto (vive no diagnóstico; entra na funcionalidade escolhida ou como avulsa).
   const addAoProjeto = () => {
     if (!nova.nome.trim()) return flash("Dê um nome à tarefa.");
     const t = tarefaObj();
@@ -144,7 +167,7 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
     saveBase && saveBase({ ...base, tarefasCuradoria: [...(base.tarefasCuradoria || []), naCuradoria] });
     resetNova(); flash("Tarefa adicionada ao projeto e enviada para a curadoria.");
   };
-  const removerAvulsa = (taskId) => {
+  const removerExtra = (taskId) => {
     const diagnosticos = diag.diagnosticos.map((x) => x.id === d.id ? { ...x, tarefasExtra: (x.tarefasExtra || []).filter((t) => t.id !== taskId) } : x);
     saveDiag && saveDiag({ ...diag, diagnosticos });
   };
@@ -230,12 +253,11 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
                             <span className="font-mono text-xs text-slate-400 w-6 text-right shrink-0">{ti + 1}</span>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm text-slate-800">{it.nome}</div>
-                              {g.avulsa && <span className="inline-block mt-0.5 rounded-full bg-teal-50 border border-teal-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-teal-700">avulsa</span>}
                             </div>
                             <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500 whitespace-nowrap shrink-0">{it.area}</span>
                             <span className="font-mono text-xs text-slate-500 whitespace-nowrap shrink-0">{it.horas} h</span>
-                            {it.avulsa && (
-                              <button onClick={() => removerAvulsa(it.taskId)} title="Remover tarefa avulsa"
+                            {it.extra && (
+                              <button onClick={() => removerExtra(it.taskId)} title="Remover tarefa do projeto"
                                 className="p-1 text-slate-300 hover:text-red-600 shrink-0"><Trash2 className="w-4 h-4" /></button>
                             )}
                           </div>
@@ -265,6 +287,14 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
             onChange={(e) => setNova((s) => ({ ...s, horas: e.target.value }))} />
           <select className={inputCls} value={nova.area} onChange={(e) => setNova((s) => ({ ...s, area: e.target.value }))}>
             {AREAS_CONSULTORIA.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+
+        <div className="mt-2">
+          <label className="font-mono text-[11px] uppercase tracking-widest text-slate-400">Em qual funcionalidade?</label>
+          <select className={inputCls + " mt-1"} value={nova.funcId} onChange={(e) => setNova((s) => ({ ...s, funcId: e.target.value }))}>
+            <option value="">Avulsa (sem funcionalidade)</option>
+            {funcsNoPlano.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
           </select>
         </div>
 
