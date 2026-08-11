@@ -207,18 +207,20 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
                 <div className="p-3 space-y-3">
                   {area.funcs.map((g, fi) => (
                     <div key={g.funcKey}>
-                      {!g.avulsa && (
-                        <div onDragOver={(e) => e.preventDefault()} onDrop={() => dropFunc(area.areaKey, fi, area.funcs)}
-                          className="flex items-center gap-2 mb-1.5 rounded-lg">
-                          <span draggable onDragStart={() => { dragFunc.current = { areaKey: area.areaKey, index: fi }; dragTask.current = null; }}
-                            title="Arraste para reordenar a funcionalidade nesta área"
-                            className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0"><GripVertical className="w-5 h-5" /></span>
-                          <VeredictoChip v={g.veredito} />
-                          <span className="text-sm font-semibold text-slate-800 truncate">{g.funcNome}</span>
-                          <span className="ml-auto font-mono text-xs text-slate-400 whitespace-nowrap">{somaHoras(g.tasks)} h</span>
-                        </div>
-                      )}
-                      <div className={g.avulsa ? "space-y-2" : "space-y-2 pl-6"}>
+                      <div onDragOver={(e) => e.preventDefault()} onDrop={() => dropFunc(area.areaKey, fi, area.funcs)}
+                        className="flex items-center gap-2 mb-1.5 rounded-lg">
+                        {g.avulsa
+                          ? <span className="w-5 shrink-0" />
+                          : <span draggable onDragStart={() => { dragFunc.current = { areaKey: area.areaKey, index: fi }; dragTask.current = null; }}
+                              title="Arraste para reordenar a funcionalidade nesta área"
+                              className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0"><GripVertical className="w-5 h-5" /></span>}
+                        {g.avulsa
+                          ? <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-xs font-mono uppercase tracking-wider text-teal-700"><span className="h-1.5 w-1.5 rounded-full bg-teal-500" />avulsas</span>
+                          : <VeredictoChip v={g.veredito} />}
+                        <span className={g.avulsa ? "text-sm text-slate-500 truncate" : "text-sm font-semibold text-slate-800 truncate"}>{g.avulsa ? "Sem funcionalidade" : g.funcNome}</span>
+                        <span className="ml-auto font-mono text-xs text-slate-400 whitespace-nowrap">{somaHoras(g.tasks)} h</span>
+                      </div>
+                      <div className="space-y-2 pl-6">
                         {g.tasks.map((it, ti) => (
                           <div key={it.taskId} onDragOver={(e) => e.preventDefault()} onDrop={() => dropTask(g.funcKey, ti, g.tasks)}
                             className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
