@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { ListChecks, GripVertical, Save, Check, Clock, Plus, Send, Trash2 } from "lucide-react";
+import { ListChecks, GripVertical, Save, Check, Clock, Plus, Send, Trash2, StickyNote } from "lucide-react";
 import { fmtDate, btnTeal, btnGhost, inputCls, uid, AREAS_CONSULTORIA, VeredictoChip, Empty, SectionTitle } from "../ui.jsx";
 
 // Do mais crítico ao melhor — define a ordem inicial das funcionalidades/áreas no plano.
@@ -182,8 +182,29 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
     resetNova(); flash("Tarefa adicionada ao projeto e enviada para a curadoria.");
   };
   const removerExtra = (taskId) => {
-    const diagnosticos = diag.diagnosticos.map((x) => x.id === d.id ? { ...x, tarefasExtra: (x.tarefasExtra || []).filter((t) => t.id !== taskId) } : x);
+    const diagnosticos = diag.diagnosticos.map((x) => {
+      if (x.id !== d.id) return x;
+      const notas = { ...(x.planoNotas || {}) }; delete notas[taskId];
+      return { ...x, tarefasExtra: (x.tarefasExtra || []).filter((t) => t.id !== taskId), planoNotas: notas };
+    });
     saveDiag && saveDiag({ ...diag, diagnosticos });
+  };
+
+  // ---- Nota por tarefa (orientação para quem executa) — guardada por diagnóstico ----
+  const planoNotas = d?.planoNotas || {};
+  const [notaEdit, setNotaEdit] = useState(null); // taskId em edição
+  const [notaDraft, setNotaDraft] = useState("");
+  const abrirNota = (taskId) => { setNotaDraft(planoNotas[taskId] || ""); setNotaEdit(taskId); };
+  const salvarNota = (taskId) => {
+    const txt = notaDraft.trim();
+    const diagnosticos = diag.diagnosticos.map((x) => {
+      if (x.id !== d.id) return x;
+      const notas = { ...(x.planoNotas || {}) };
+      if (txt) notas[taskId] = txt; else delete notas[taskId];
+      return { ...x, planoNotas: notas };
+    });
+    saveDiag && saveDiag({ ...diag, diagnosticos });
+    setNotaEdit(null); setNotaDraft("");
   };
 
   if (!d) return (
@@ -264,20 +285,43 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
                       <div className="space-y-2 pl-6">
                         {g.tasks.map((it, ti) => (
                           <div key={it.taskId} onDragOver={(e) => e.preventDefault()} onDrop={() => dropTask(g.funcKey, ti, g.tasks)}
-                            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
-                            <span draggable onDragStart={() => { dragTask.current = { funcKey: g.funcKey, index: ti }; dragFunc.current = null; dragArea.current = null; }}
-                              title="Arraste para reordenar a tarefa"
-                              className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0"><GripVertical className="w-5 h-5" /></span>
-                            <span className="font-mono text-xs text-slate-400 w-6 text-right shrink-0">{ti + 1}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm text-slate-800">{it.nome}</div>
+                            className="rounded-xl border border-slate-200 bg-white">
+                            <div className="flex items-center gap-3 p-3">
+                              <span draggable onDragStart={() => { dragTask.current = { funcKey: g.funcKey, index: ti }; dragFunc.current = null; dragArea.current = null; }}
+                                title="Arraste para reordenar a tarefa"
+                                className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0"><GripVertical className="w-5 h-5" /></span>
+                              <span className="font-mono text-xs text-slate-400 w-6 text-right shrink-0">{ti + 1}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm text-slate-800">{it.nome}</div>
+                              </div>
+                              <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500 whitespace-nowrap shrink-0">{it.area}</span>
+                              <span className="font-mono text-xs text-slate-500 whitespace-nowrap shrink-0">{it.horas} h</span>
+                              <button onClick={() => (notaEdit === it.taskId ? setNotaEdit(null) : abrirNota(it.taskId))}
+                                title={planoNotas[it.taskId] ? "Editar nota" : "Adicionar nota"}
+                                className={"p-1 shrink-0 " + (planoNotas[it.taskId] ? "text-teal-600 hover:text-teal-700" : "text-slate-300 hover:text-teal-600")}><StickyNote className="w-4 h-4" /></button>
+                              {it.extra && (
+                                <button onClick={() => removerExtra(it.taskId)} title="Remover tarefa do projeto"
+                                  className="p-1 text-slate-300 hover:text-red-600 shrink-0"><Trash2 className="w-4 h-4" /></button>
+                              )}
                             </div>
-                            <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500 whitespace-nowrap shrink-0">{it.area}</span>
-                            <span className="font-mono text-xs text-slate-500 whitespace-nowrap shrink-0">{it.horas} h</span>
-                            {it.extra && (
-                              <button onClick={() => removerExtra(it.taskId)} title="Remover tarefa do projeto"
-                                className="p-1 text-slate-300 hover:text-red-600 shrink-0"><Trash2 className="w-4 h-4" /></button>
-                            )}
+                            {notaEdit === it.taskId ? (
+                              <div className="px-3 pb-3 pl-14">
+                                <textarea autoFocus className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500 resize-y" style={{ minHeight: 60 }}
+                                  placeholder="Orientação para quem for executar esta tarefa…" value={notaDraft} onChange={(e) => setNotaDraft(e.target.value)} />
+                                <div className="flex items-center gap-2 mt-1.5">
+                                  <button className={btnTeal} onClick={() => salvarNota(it.taskId)}><Check className="w-4 h-4" /> Salvar nota</button>
+                                  <button className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100" onClick={() => { setNotaEdit(null); setNotaDraft(""); }}>Cancelar</button>
+                                </div>
+                              </div>
+                            ) : planoNotas[it.taskId] ? (
+                              <div className="px-3 pb-3 pl-14">
+                                <div className="rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2 flex gap-2">
+                                  <StickyNote className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                                  <span className="text-sm text-slate-700 whitespace-pre-wrap flex-1">{planoNotas[it.taskId]}</span>
+                                  <button onClick={() => abrirNota(it.taskId)} className="text-xs text-teal-700 hover:underline shrink-0">editar</button>
+                                </div>
+                              </div>
+                            ) : null}
                           </div>
                         ))}
                       </div>
