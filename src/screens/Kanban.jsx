@@ -100,6 +100,8 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
   const respostasDaFunc = (diagId, funcId) => {
     if (!funcId) return [];
     const func = base.funcionalidades.find((x) => x.id === funcId);
+    const dx = diag.diagnosticos.find((x) => x.id === diagId);
+    const linhaEdits = dx?.linhaEdits || {};
     return diag.respostas.filter((r) => {
       if (r.diagnostico_id !== diagId || r.tipo === "inicial") return false;
       const p = base.perguntas.find((x) => x.id === r.pergunta_id);
@@ -110,7 +112,7 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
       const veredito = r.veredito || o?.veredito || "rever";
       const resposta = r.texto_outro ? `Outro: ${r.texto_outro}` : (o?.texto || "—");
       const atende = comoAtendemos(veredito, func) || `Resposta livre: ${resposta} — avaliar na curadoria.`;
-      return { id: r.id || `${r.pergunta_id}-${k}`, pergunta: p?.texto || "—", veredito, atende };
+      return { id: r.id || `${r.pergunta_id}-${k}`, pergunta: p?.texto || "—", veredito, atende, notaRel: (linhaEdits[r.id]?.nota || "").trim() };
     });
   };
   // Regra de sequência: a tarefa anterior, se marcada como bloqueadora, precisa estar Concluída.
@@ -300,7 +302,8 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
       {detalhe && (() => {
         const qas = respostasDaFunc(detalhe.diagId, detalhe.funcId);
         const func = detalhe.funcId ? base.funcionalidades.find((x) => x.id === detalhe.funcId) : null;
-        const notaAtual = (diag.diagnosticos.find((x) => x.id === detalhe.diagId)?.planoNotas || {})[detalhe.taskId] || "";
+        const notasRel = qas.filter((q) => q.notaRel);
+        const notaPlano = (diag.diagnosticos.find((x) => x.id === detalhe.diagId)?.planoNotas || {})[detalhe.taskId] || "";
         return (
           <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setDetalhe(null)}>
             <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white shadow-xl border border-slate-200 p-5" onClick={(e) => e.stopPropagation()}>
@@ -351,11 +354,24 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
               </div>
 
               <div className="mt-4">
-                <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2"><StickyNote className="w-3.5 h-3.5" /> Nota do plano</div>
-                {notaAtual
-                  ? <div className="rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2 text-sm text-slate-700 whitespace-pre-wrap">{notaAtual}</div>
-                  : <p className="text-sm text-slate-400">Nenhuma nota adicionada para esta tarefa no Plano de projeto.</p>}
+                <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2"><StickyNote className="w-3.5 h-3.5" /> Notas do relatório</div>
+                {notasRel.length === 0 ? <p className="text-sm text-slate-400">Nenhuma nota registrada no pré-relatório para esta funcionalidade.</p>
+                  : <div className="space-y-2">
+                    {notasRel.map((q) => (
+                      <div key={q.id} className="rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2">
+                        <div className="text-[11px] text-slate-500 mb-0.5">{q.pergunta}</div>
+                        <div className="text-sm text-slate-700 whitespace-pre-wrap">{q.notaRel}</div>
+                      </div>
+                    ))}
+                  </div>}
               </div>
+
+              {notaPlano && (
+                <div className="mt-4">
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2"><StickyNote className="w-3.5 h-3.5" /> Nota do plano (tarefa)</div>
+                  <div className="rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2 text-sm text-slate-700 whitespace-pre-wrap">{notaPlano}</div>
+                </div>
+              )}
             </div>
           </div>
         );
