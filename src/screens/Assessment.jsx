@@ -217,7 +217,7 @@ function CadastroPerguntas({ base, saveBase, segId }) {
   const sugerirIA = async () => {
     setErroIA(""); setSugestoes(null); setSugerindo(true);
     try {
-      const out = await generateAssessment(segNome || "Indústria");
+      const out = await generateAssessment(segId, segNome || "Indústria");
       setSugestoes(out.perguntas || []);
     } catch (e) { setErroIA(e.message || "Falha ao gerar sugestões."); }
     finally { setSugerindo(false); }
@@ -241,12 +241,6 @@ function CadastroPerguntas({ base, saveBase, segId }) {
   const perguntas = (base.assessmentPerguntas || []).filter((p) => p.segmento_id === segId).sort((a, b) => a.ordem - b.ordem);
   const opcoesDe = (pid) => (base.assessmentOpcoes || []).filter((o) => o.pergunta_id === pid).sort((a, b) => a.ordem - b.ordem);
   const funcsDoSegmento = base.funcionalidades.filter((f) => (f.segmento_ids || []).includes(segId));
-  const outrasFuncs = base.funcionalidades.filter((f) => !(f.segmento_ids || []).includes(segId));
-  const funcsSelecionaveis = [...funcsDoSegmento, ...outrasFuncs];
-  const segLabelDaFunc = (f) => {
-    const nomes = (f.segmento_ids || []).map((id) => (base.segmentos || []).find((s) => s.id === id)?.nome).filter(Boolean);
-    return nomes.length ? nomes.join(", ") : "sem segmento";
-  };
   const funcNome = (id) => base.funcionalidades.find((f) => f.id === id)?.nome || "—";
 
   const updOp = (i, patch) => setOpcoes((o) => o.map((x, k) => (k === i ? { ...x, ...patch } : x)));
@@ -379,17 +373,14 @@ function CadastroPerguntas({ base, saveBase, segId }) {
                 <button className="p-2 text-slate-400 hover:text-red-600" onClick={() => rmOp(i)}><X className="w-4 h-4" /></button>
               </div>
               <div>
-                <div className="text-xs text-slate-400 mb-1">Acende quais funcionalidades? {funcsSelecionaveis.length === 0 && <span>— nenhuma funcionalidade cadastrada ainda (cadastre em “Perguntas funcionalidade”)</span>}</div>
+                <div className="text-xs text-slate-400 mb-1">Acende quais funcionalidades? {funcsDoSegmento.length === 0 && <span>— nenhuma funcionalidade neste segmento (associe o segmento na aba “Perguntas funcionalidade”)</span>}</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {funcsSelecionaveis.map((f) => {
+                  {funcsDoSegmento.map((f) => {
                     const on = o.oportunidades.includes(f.id);
-                    const fora = !(f.segmento_ids || []).includes(segId);
                     return (
                       <button key={f.id} onClick={() => toggleOportunidade(i, f.id)}
-                        title={fora ? `Funcionalidade de: ${segLabelDaFunc(f)}` : undefined}
                         className={`text-xs rounded-full px-2.5 py-1 border transition ${on ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-500 border-slate-300 hover:border-teal-400"}`}>
                         {on && <Check className="w-3 h-3 inline mr-1" />}{f.nome}
-                        {fora && <span className={`ml-1 ${on ? "text-teal-100" : "text-slate-400"}`}>· {segLabelDaFunc(f)}</span>}
                       </button>
                     );
                   })}

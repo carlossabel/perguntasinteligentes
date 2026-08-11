@@ -133,17 +133,19 @@ app.post("/api/generate", async (req, res) => {
 
 // ---- Geração do questionário inicial do segmento (consultor sênior de indústria) ----
 app.post("/api/generate-assessment", async (req, res) => {
-  const { segmento } = req.body || {};
+  const { segId, segmento } = req.body || {};
   if (!segmento) return res.status(400).json({ error: "Informe o segmento." });
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY não configurada no .env do servidor." });
   const d = getData();
-  const funcs = (d.base.funcionalidades || []).map((f) => f.nome);
   const norm = (s) => (s || "").trim().toLowerCase();
-  const byName = new Map((d.base.funcionalidades || []).map((f) => [norm(f.nome), f.id]));
+  // Só funcionalidades DESTE segmento entram na sugestão e no vínculo.
+  const funcsSeg = (d.base.funcionalidades || []).filter((f) => (f.segmento_ids || []).includes(segId));
+  const funcs = funcsSeg.map((f) => f.nome);
+  const byName = new Map(funcsSeg.map((f) => [norm(f.nome), f.id]));
   try {
     const out = await gerarAssessmentComIA({ segmento, funcs, model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6", apiKey });
-    // mapeia os nomes sugeridos em "acende" para ids reais de funcionalidades
+    // mapeia os nomes sugeridos em "acende" para ids reais de funcionalidades do segmento
     out.perguntas.forEach((p) => p.opcoes.forEach((o) => {
       o.oportunidades = (o.acende || []).map((n) => byName.get(norm(n))).filter(Boolean);
       delete o.acende;
