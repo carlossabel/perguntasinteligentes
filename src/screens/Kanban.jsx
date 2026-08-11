@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from "react";
-import { ChevronLeft, ChevronRight, LayoutGrid, ListChecks, X, Video, MapPin, Calendar, Check, StickyNote, MessageSquare } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutGrid, ListChecks, X, Video, MapPin, Calendar, Check, StickyNote, MessageSquare, Lock } from "lucide-react";
 import { fmtDate, AREAS_CONSULTORIA, btnTeal, VeredictoChip, Empty, SectionTitle } from "../ui.jsx";
 import { sequenciaTarefas, travaEfetiva } from "../planoSeq.js";
 
@@ -15,11 +15,24 @@ const AGENDADO = "agendado";
 const faseIdx = (id) => Math.max(0, FASES.findIndex((f) => f.id === id));
 const MODO_LABEL = { remoto: "Remoto", inloco: "In-loco" };
 const fmtData = (s) => { if (!s) return ""; const p = s.split("-"); return p.length === 3 ? `${p[2]}/${p[1]}` : s; };
+// Lado "Como podemos atender" — tom consultivo por veredito (espelha o pré-relatório).
+function comoAtendemos(veredito, func) {
+  switch (veredito) {
+    case "atende": return func?.como_atende?.trim() || "Atendemos esse processo de forma nativa, sem esforço adicional.";
+    case "ok": return "Já bem resolvido no cliente — sem esforço de implantação da nossa parte.";
+    case "parceira": return "Atendemos por meio de parceiro/integração homologada.";
+    case "parcial": return "Atendemos parcialmente; resta um ajuste a dimensionar no projeto.";
+    case "custom": return "Atendemos via customização — escopo a dimensionar em conjunto.";
+    case "gap": return "Hoje não cobrimos isso nativamente; ponto a avaliar como evolução/roadmap.";
+    default: return "";
+  }
+}
 
 export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId }) {
   const diags = [...diag.diagnosticos].filter((x) => x.status !== "em_andamento").reverse();
   const [modo, setModo] = useState("plano"); // "plano" | "area"
   const [areaSel, setAreaSel] = useState(AREAS_CONSULTORIA[0]);
+  const [soTravadas, setSoTravadas] = useState(false);
   const planoId = selectedId && diags.some((x) => x.id === selectedId) ? selectedId : diags[0]?.id;
 
   // Coleta as tarefas de um diagnóstico (funcionalidades presentes + avulsas), já com a fase.
@@ -42,7 +55,7 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
       (f.tarefas || []).forEach((t) => items.push({
         key: `${d.id}::${t.id}`, diagId: d.id, taskId: t.id, funcId: fid, clienteNome: d.cliente_nome,
         nome: t.nome, horas: Number(t.horas) || 0, area: t.area, funcNome: f.nome, fase: fases[t.id] || FASE_DEFAULT, agenda: ag[t.id] || null,
-        nota: notas[t.id] || "", temNota: !!notas[t.id],
+        nota: notas[t.id] || "", temNota: !!notas[t.id], trava: travaEfetiva(base, d, t.id),
       }));
     });
     (d.tarefasExtra || []).forEach((t) => {
@@ -50,17 +63,19 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
       items.push({
         key: `${d.id}::${t.id}`, diagId: d.id, taskId: t.id, funcId: t.funcId || null, clienteNome: d.cliente_nome,
         nome: t.nome, horas: Number(t.horas) || 0, area: t.area, funcNome: f ? f.nome : "Avulsa", extra: true, fase: fases[t.id] || FASE_DEFAULT, agenda: ag[t.id] || null,
-        nota: notas[t.id] || "", temNota: !!notas[t.id],
+        nota: notas[t.id] || "", temNota: !!notas[t.id], trava: travaEfetiva(base, d, t.id),
       });
     });
     return items;
   };
 
   const cards = useMemo(() => {
-    if (modo === "plano") return tarefasDoDiag(diag.diagnosticos.find((x) => x.id === planoId));
-    return diags.flatMap((d) => tarefasDoDiag(d)).filter((c) => c.area === areaSel);
+    const arr = modo === "plano"
+      ? tarefasDoDiag(diag.diagnosticos.find((x) => x.id === planoId))
+      : diags.flatMap((d) => tarefasDoDiag(d)).filter((c) => c.area === areaSel);
+    return soTravadas ? arr.filter((c) => c.trava) : arr;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modo, planoId, areaSel, diag, base]);
+  }, [modo, planoId, areaSel, soTravadas, diag, base]);
 
   const porFase = (fid) => cards.filter((c) => c.fase === fid);
   const horas = (arr) => arr.reduce((s, c) => s + c.horas, 0);
@@ -84,6 +99,7 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
   // Perguntas/respostas do diagnóstico para a funcionalidade que gerou a tarefa.
   const respostasDaFunc = (diagId, funcId) => {
     if (!funcId) return [];
+    const func = base.funcionalidades.find((x) => x.id === funcId);
     return diag.respostas.filter((r) => {
       if (r.diagnostico_id !== diagId || r.tipo === "inicial") return false;
       const p = base.perguntas.find((x) => x.id === r.pergunta_id);
@@ -91,12 +107,10 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
     }).map((r, k) => {
       const p = base.perguntas.find((x) => x.id === r.pergunta_id);
       const o = base.opcoes.find((x) => x.id === r.opcao_id);
-      return {
-        id: r.id || `${r.pergunta_id}-${k}`,
-        pergunta: p?.texto || "—",
-        resposta: r.texto_outro ? `Outro: ${r.texto_outro}` : (o?.texto || "—"),
-        veredito: r.veredito || o?.veredito || "rever",
-      };
+      const veredito = r.veredito || o?.veredito || "rever";
+      const resposta = r.texto_outro ? `Outro: ${r.texto_outro}` : (o?.texto || "—");
+      const atende = comoAtendemos(veredito, func) || `Resposta livre: ${resposta} — avaliar na curadoria.`;
+      return { id: r.id || `${r.pergunta_id}-${k}`, pergunta: p?.texto || "—", veredito, atende };
     });
   };
   // Regra de sequência: a tarefa anterior, se marcada como bloqueadora, precisa estar Concluída.
@@ -173,6 +187,10 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
               {AREAS_CONSULTORIA.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           )}
+          <button onClick={() => setSoTravadas((v) => !v)} title="Mostrar só as tarefas travadas"
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm ${soTravadas ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-300 text-slate-600 hover:bg-slate-100"}`}>
+            <Lock className="w-4 h-4" /> Só travadas
+          </button>
         </div>
       </div>
 
@@ -199,8 +217,11 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
                     const i = faseIdx(c.fase);
                     return (
                       <div key={c.key} draggable onDragStart={() => { dragCard.current = c; }} onClick={() => setDetalhe(c)}
-                        className="rounded-xl border border-slate-200 bg-white p-2.5 cursor-pointer active:cursor-grabbing shadow-sm hover:border-teal-300">
-                        <div className="text-sm text-slate-800 leading-snug">{c.nome}</div>
+                        className={"rounded-xl border p-2.5 cursor-pointer active:cursor-grabbing shadow-sm " + (c.trava ? "border-amber-300 bg-amber-50 hover:border-amber-400" : "border-slate-200 bg-white hover:border-teal-300")}>
+                        <div className="flex items-start gap-1.5">
+                          {c.trava && <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" title="Precisa estar concluída antes de agendar a próxima da sequência" />}
+                          <div className="text-sm text-slate-800 leading-snug">{c.nome}</div>
+                        </div>
                         <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                           <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500">{c.area}</span>
                           <span className="font-mono text-[11px] text-slate-400">{c.horas} h</span>
@@ -279,6 +300,7 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
       {detalhe && (() => {
         const qas = respostasDaFunc(detalhe.diagId, detalhe.funcId);
         const func = detalhe.funcId ? base.funcionalidades.find((x) => x.id === detalhe.funcId) : null;
+        const notaAtual = (diag.diagnosticos.find((x) => x.id === detalhe.diagId)?.planoNotas || {})[detalhe.taskId] || "";
         return (
           <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setDetalhe(null)}>
             <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white shadow-xl border border-slate-200 p-5" onClick={(e) => e.stopPropagation()}>
@@ -289,6 +311,7 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
                     <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500">{detalhe.area}</span>
                     <span className="font-mono text-[11px] text-slate-400">{detalhe.horas} h</span>
                     <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400">{FASES[faseIdx(detalhe.fase)].label}</span>
+                    {detalhe.trava && <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-amber-700"><Lock className="w-3 h-3" /> travada</span>}
                     <span className="text-[11px] text-slate-400">· {detalhe.clienteNome}</span>
                   </div>
                 </div>
@@ -310,7 +333,7 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
               )}
 
               <div className="mt-4">
-                <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2"><MessageSquare className="w-3.5 h-3.5" /> Respostas do diagnóstico</div>
+                <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2"><MessageSquare className="w-3.5 h-3.5" /> Como podemos atender</div>
                 {qas.length === 0 ? <p className="text-sm text-slate-400">Sem respostas registradas para esta funcionalidade.</p>
                   : <div className="space-y-2">
                     {qas.map((q) => (
@@ -318,8 +341,8 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
                         <div className="flex items-start gap-2">
                           <VeredictoChip v={q.veredito} />
                           <div className="min-w-0">
-                            <div className="text-sm text-slate-700">{q.pergunta}</div>
-                            <div className="text-sm text-slate-900 font-medium mt-0.5">→ {q.resposta}</div>
+                            <div className="text-sm text-slate-500">{q.pergunta}</div>
+                            <div className="text-sm text-slate-900 font-medium mt-0.5 whitespace-pre-wrap">{q.atende}</div>
                           </div>
                         </div>
                       </div>
@@ -329,8 +352,8 @@ export default function Kanban({ base, diag, saveDiag, selectedId, setSelectedId
 
               <div className="mt-4">
                 <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2"><StickyNote className="w-3.5 h-3.5" /> Nota do plano</div>
-                {detalhe.nota
-                  ? <div className="rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2 text-sm text-slate-700 whitespace-pre-wrap">{detalhe.nota}</div>
+                {notaAtual
+                  ? <div className="rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2 text-sm text-slate-700 whitespace-pre-wrap">{notaAtual}</div>
                   : <p className="text-sm text-slate-400">Nenhuma nota adicionada para esta tarefa no Plano de projeto.</p>}
               </div>
             </div>
