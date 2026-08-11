@@ -94,7 +94,7 @@ export default function App() {
         {tab === "curadoria" && <Curadoria base={base} saveBase={saveBase} diag={diag} />}
         {tab === "diagnostico" && <Diagnostico base={base} diag={diag} saveDiag={saveDiag} goToReport={goToReport} openId={diagTarget} clearOpen={() => setDiagTarget(null)} />}
         {tab === "relatorio" && <Relatorio base={base} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} goToPlano={goToPlano} goToDiagnostico={goToDiagnostico} />}
-        {tab === "plano" && <PlanoProjeto base={base} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} />}
+        {tab === "plano" && <PlanoProjeto base={base} saveBase={saveBase} diag={diag} saveDiag={saveDiag} selectedId={reportId} setSelectedId={setReportId} />}
         {tab === "base" && <Base base={base} saveBase={saveBase} onEdit={goEdit} />}
       </main>
 

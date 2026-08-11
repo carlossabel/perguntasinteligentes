@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { ListChecks, GripVertical, Save, Check, Clock } from "lucide-react";
-import { fmtDate, btnTeal, VeredictoChip, Empty, SectionTitle } from "../ui.jsx";
+import { ListChecks, GripVertical, Save, Check, Clock, Plus, FolderPlus, Send, Trash2 } from "lucide-react";
+import { fmtDate, btnTeal, btnGhost, inputCls, uid, AREAS_CONSULTORIA, VeredictoChip, Empty, SectionTitle } from "../ui.jsx";
 
 // Do mais crítico ao melhor — define a ordem inicial das funcionalidades no plano.
 const ORDEM_TECNICA = ["gap", "custom", "parcial", "parceira", "atende", "ok"];
 
-export default function PlanoProjeto({ base, diag, saveDiag, selectedId, setSelectedId }) {
+export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedId, setSelectedId }) {
   const [saved, setSaved] = useState(false);
   const diags = [...diag.diagnosticos].filter((x) => x.status !== "em_andamento").reverse();
   const d = diag.diagnosticos.find((x) => x.id === selectedId) || diags[0];
@@ -40,8 +40,73 @@ export default function PlanoProjeto({ base, diag, saveDiag, selectedId, setSele
         nome: t.nome, horas: Number(t.horas) || 0, area: t.area,
       }));
     });
+    // Tarefas avulsas: adicionadas direto neste projeto (não vivem na base).
+    (d.tarefasExtra || []).forEach((t) => itens.push({
+      taskId: t.id, funcId: null, funcNome: "Tarefa avulsa", veredito: null, avulsa: true,
+      nome: t.nome, horas: Number(t.horas) || 0, area: t.area,
+    }));
     return itens;
   }, [d, diag.respostas, base]);
+
+  // Funcionalidades presentes neste diagnóstico (para ordenar/rotular o seletor de destino).
+  const funcIdsNoDiag = useMemo(() => {
+    const s = new Set();
+    if (!d) return s;
+    diag.respostas.filter((r) => r.diagnostico_id === d.id && r.tipo !== "inicial").forEach((r) => {
+      const p = base.perguntas.find((x) => x.id === r.pergunta_id);
+      const fid = r.funcionalidade_id || p?.funcionalidade_id;
+      if (fid) s.add(fid);
+    });
+    return s;
+  }, [d, diag.respostas, base]);
+
+  const funcOptions = useMemo(
+    () => [...base.funcionalidades].sort((a, b) => (funcIdsNoDiag.has(b.id) - funcIdsNoDiag.has(a.id)) || a.nome.localeCompare(b.nome)),
+    [base.funcionalidades, funcIdsNoDiag]
+  );
+
+  // ---- Adicionar tarefa ao plano, com três destinos possíveis ----
+  const [nova, setNova] = useState({ nome: "", horas: "", area: AREAS_CONSULTORIA[0] });
+  const [modo, setModo] = useState(null); // null | "func"
+  const [funcAlvo, setFuncAlvo] = useState("");
+  const [aviso, setAviso] = useState("");
+  const flash = (m) => { setAviso(m); setTimeout(() => setAviso(""), 3500); };
+  const resetNova = () => { setNova({ nome: "", horas: "", area: AREAS_CONSULTORIA[0] }); setModo(null); setFuncAlvo(""); };
+  const tarefaObj = () => ({ id: uid(), nome: nova.nome.trim(), horas: Number(nova.horas) || 0, area: nova.area });
+
+  // Destino 1: numa funcionalidade existente (persiste na base).
+  const addAFuncionalidade = () => {
+    if (!nova.nome.trim()) return flash("Dê um nome à tarefa.");
+    if (!funcAlvo) return flash("Escolha a funcionalidade.");
+    const t = tarefaObj();
+    const funcionalidades = base.funcionalidades.map((f) =>
+      f.id === funcAlvo ? { ...f, tarefas: [...(f.tarefas || []), t], atualizado_em: new Date().toISOString() } : f);
+    saveBase && saveBase({ ...base, funcionalidades });
+    const naDiag = funcIdsNoDiag.has(funcAlvo);
+    resetNova();
+    flash(naDiag ? "Tarefa adicionada à funcionalidade e ao plano." : "Tarefa adicionada à funcionalidade (entra no plano dos diagnósticos que a incluam).");
+  };
+  // Destino 2: mandar para a curadoria decidir depois.
+  const addACuradoria = () => {
+    if (!nova.nome.trim()) return flash("Dê um nome à tarefa.");
+    const t = { ...tarefaObj(), cliente_nome: d.cliente_nome, origem_diagnostico_id: d.id, criado_em: new Date().toISOString() };
+    saveBase && saveBase({ ...base, tarefasCuradoria: [...(base.tarefasCuradoria || []), t] });
+    resetNova();
+    flash("Tarefa enviada para a curadoria.");
+  };
+  // Destino 3: só neste projeto (vive no diagnóstico, como tarefa avulsa).
+  const addAoProjeto = () => {
+    if (!nova.nome.trim()) return flash("Dê um nome à tarefa.");
+    const t = tarefaObj();
+    const diagnosticos = diag.diagnosticos.map((x) => x.id === d.id ? { ...x, tarefasExtra: [...(x.tarefasExtra || []), t] } : x);
+    saveDiag && saveDiag({ ...diag, diagnosticos });
+    resetNova();
+    flash("Tarefa adicionada só a este projeto.");
+  };
+  const removerAvulsa = (taskId) => {
+    const diagnosticos = diag.diagnosticos.map((x) => x.id === d.id ? { ...x, tarefasExtra: (x.tarefasExtra || []).filter((t) => t.id !== taskId) } : x);
+    saveDiag && saveDiag({ ...diag, diagnosticos });
+  };
 
   // Aplica a ordem salva (lista de taskIds); tarefas novas entram no fim.
   const [ordem, setOrdem] = useState([]);
@@ -133,17 +198,66 @@ export default function PlanoProjeto({ base, diag, saveDiag, selectedId, setSele
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-slate-800">{it.nome}</div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <VeredictoChip v={it.veredito} />
+                    {it.avulsa
+                      ? <span className="rounded-full bg-teal-50 border border-teal-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-teal-700">avulsa</span>
+                      : <VeredictoChip v={it.veredito} />}
                     <span className="text-xs text-slate-400 truncate">{it.funcNome}</span>
                   </div>
                 </div>
                 <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500 whitespace-nowrap shrink-0">{it.area}</span>
                 <span className="font-mono text-xs text-slate-500 whitespace-nowrap shrink-0">{it.horas} h</span>
+                {it.avulsa && (
+                  <button onClick={() => removerAvulsa(it.taskId)} title="Remover tarefa avulsa"
+                    className="p-1 text-slate-300 hover:text-red-600 shrink-0"><Trash2 className="w-4 h-4" /></button>
+                )}
               </div>
             ))}
           </div>
         </>
       )}
+
+      {/* Adicionar tarefa ao plano — sempre pergunta onde ela deve morar. */}
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Plus className="w-4 h-4 text-teal-700" />
+          <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400">Adicionar tarefa ao plano</h3>
+        </div>
+        <p className="text-xs text-slate-400 mb-3">Descreva a tarefa e escolha onde ela deve morar.</p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr,96px,200px] gap-2">
+          <input className={inputCls} placeholder="ex.: Migrar cadastro de clientes" value={nova.nome}
+            onChange={(e) => setNova((s) => ({ ...s, nome: e.target.value }))} />
+          <input type="number" min="0" step="0.5" className={inputCls} placeholder="horas" value={nova.horas}
+            onChange={(e) => setNova((s) => ({ ...s, horas: e.target.value }))} />
+          <select className={inputCls} value={nova.area} onChange={(e) => setNova((s) => ({ ...s, area: e.target.value }))}>
+            {AREAS_CONSULTORIA.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+
+        <div className="mt-3">
+          <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-2">Onde salvar?</div>
+          {modo !== "func" ? (
+            <div className="flex flex-wrap gap-2">
+              <button className={btnGhost} onClick={() => { if (!nova.nome.trim()) return flash("Dê um nome à tarefa."); setModo("func"); }}>
+                <FolderPlus className="w-4 h-4" /> Numa funcionalidade existente
+              </button>
+              <button className={btnGhost} onClick={addACuradoria}><Send className="w-4 h-4" /> Mandar para curadoria</button>
+              <button className={btnGhost} onClick={addAoProjeto}><ListChecks className="w-4 h-4" /> Só neste projeto</button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <select className="rounded-lg border border-slate-300 px-2 py-2 text-sm flex-1 min-w-[220px] outline-none focus:border-teal-500"
+                value={funcAlvo} onChange={(e) => setFuncAlvo(e.target.value)}>
+                <option value="">Escolha a funcionalidade…</option>
+                {funcOptions.map((f) => <option key={f.id} value={f.id}>{f.nome}{funcIdsNoDiag.has(f.id) ? " · neste diagnóstico" : ""}</option>)}
+              </select>
+              <button className={btnTeal} onClick={addAFuncionalidade}><Check className="w-4 h-4" /> Vincular</button>
+              <button className={btnGhost} onClick={() => { setModo(null); setFuncAlvo(""); }}>Cancelar</button>
+            </div>
+          )}
+          {aviso && <p className="text-xs text-teal-700 mt-2">{aviso}</p>}
+        </div>
+      </div>
     </div>
   );
 }

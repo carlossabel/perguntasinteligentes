@@ -1,27 +1,29 @@
 import { useState, useMemo } from "react";
-import { ClipboardCheck, Plus, Check, X, Edit3 } from "lucide-react";
-import { VEREDITOS, uid, inputCls, btnTeal, btnGhost, VeredictoChip, Empty, SectionTitle } from "../ui.jsx";
+import { ClipboardCheck, Plus, Check, X } from "lucide-react";
+import { VEREDITOS, uid, btnTeal, VeredictoChip, Empty, SectionTitle } from "../ui.jsx";
 
 // Vereditos que contam como "sinal" de produto (dor recorrente).
 const SINAL = ["gap", "parcial", "custom"];
 
 export default function Curadoria({ base, saveBase, diag }) {
-  const [motivos, setMotivos] = useState({});
-  const [editando, setEditando] = useState({});
-  const avaliador = "consultor";
+  const [alvoFunc, setAlvoFunc] = useState({});
 
-  const sugeridas = base.perguntas.filter((p) => p.status === "sugerida");
-  const recusadas = base.perguntas.filter((p) => p.status === "recusada");
   const funcName = (fid) => base.funcionalidades.find((f) => f.id === fid)?.nome || "—";
+  const tarefasCuradoria = base.tarefasCuradoria || [];
 
-  const setStatus = (pid, status, extra = {}) => {
-    const perguntas = base.perguntas.map((p) => p.id === pid ? { ...p, status, avaliado_por: avaliador, ...extra } : p);
-    saveBase({ ...base, perguntas });
+  // Tarefas avulsas enviadas do Plano de projeto: vincular a uma funcionalidade ou descartar.
+  const atribuirTarefa = (t, funcId) => {
+    if (!funcId) return;
+    const funcionalidades = base.funcionalidades.map((f) =>
+      f.id === funcId
+        ? { ...f, tarefas: [...(f.tarefas || []), { id: uid(), nome: t.nome, horas: Number(t.horas) || 0, area: t.area }] }
+        : f);
+    const restantes = (base.tarefasCuradoria || []).filter((x) => x.id !== t.id);
+    saveBase({ ...base, funcionalidades, tarefasCuradoria: restantes });
+    setAlvoFunc((s) => { const n = { ...s }; delete n[t.id]; return n; });
   };
-  const salvarAjuste = (pid) => {
-    const perguntas = base.perguntas.map((p) => p.id === pid ? { ...p, texto: editando[pid], status: "aprovada", avaliado_por: avaliador } : p);
-    saveBase({ ...base, perguntas });
-    setEditando((e) => { const n = { ...e }; delete n[pid]; return n; });
+  const descartarTarefa = (id) => {
+    saveBase({ ...base, tarefasCuradoria: (base.tarefasCuradoria || []).filter((x) => x.id !== id) });
   };
 
   // Curadoria muda a realidade: reclassifica o veredito de uma opção.
@@ -99,46 +101,31 @@ export default function Curadoria({ base, saveBase, diag }) {
           </div>}
       </div>
 
+      {/* Tarefas avulsas enviadas do Plano de projeto para decidir depois. */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-3">Recusadas · o “não perguntar” reinjetado na IA ({recusadas.length})</h3>
-        {recusadas.length === 0 ? <p className="text-sm text-slate-400 py-2">Nenhuma pergunta recusada ainda.</p>
+        <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-1">Tarefas para curar · vindas do plano de projeto ({tarefasCuradoria.length})</h3>
+        <p className="text-xs text-slate-400 mb-3">Decida onde cada tarefa avulsa deve morar: vincule a uma funcionalidade ou descarte.</p>
+        {tarefasCuradoria.length === 0 ? <Empty icon={ClipboardCheck} title="Nenhuma tarefa pendente" hint="Tarefas marcadas como “mandar para curadoria” no Plano de projeto aparecem aqui." />
           : <div className="space-y-2">
-            {recusadas.map((p) => (
-              <div key={p.id} className="rounded-lg border border-slate-200 px-3 py-2">
-                <p className="text-sm text-slate-500 line-through">{p.texto}</p>
-                {p.motivo && <p className="text-xs text-red-600 mt-0.5">motivo: {p.motivo}</p>}
-              </div>
-            ))}
-          </div>}
-      </div>
-
-      {/* Fila de sugeridas: por último, como a fila de trabalho pendente. */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-3">Fila · perguntas sugeridas ({sugeridas.length})</h3>
-        {sugeridas.length === 0 ? <Empty icon={ClipboardCheck} title="Fila vazia" hint="Perguntas marcadas como “curar depois” no cadastro aparecem aqui." />
-          : <div className="space-y-3">
-            {sugeridas.map((p) => (
-              <div key={p.id} className="rounded-xl border border-slate-200 p-4">
-                <div className="text-xs font-mono uppercase tracking-wider text-teal-700 mb-1">{funcName(p.funcionalidade_id)} · {p.origem}</div>
-                {editando[p.id] !== undefined ? (
-                  <textarea className={inputCls + " mb-2"} value={editando[p.id]} onChange={(e) => setEditando((s) => ({ ...s, [p.id]: e.target.value }))} />
-                ) : <p className="text-slate-800 mb-3">{p.texto}</p>}
-                <div className="flex flex-wrap items-center gap-2">
-                  {editando[p.id] !== undefined ? (
-                    <>
-                      <button className={btnTeal} onClick={() => salvarAjuste(p.id)}><Check className="w-4 h-4" /> Salvar ajuste</button>
-                      <button className={btnGhost} onClick={() => setEditando((s) => { const n = { ...s }; delete n[p.id]; return n; })}>Cancelar</button>
-                    </>
-                  ) : (
-                    <>
-                      <button className={btnTeal} onClick={() => setStatus(p.id, "aprovada")}><Check className="w-4 h-4" /> Aprovar</button>
-                      <button className={btnGhost} onClick={() => setEditando((s) => ({ ...s, [p.id]: p.texto }))}><Edit3 className="w-4 h-4" /> Ajustar</button>
-                      <div className="flex items-center gap-1 ml-auto">
-                        <input className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs w-40" placeholder="motivo da recusa" value={motivos[p.id] || ""} onChange={(e) => setMotivos((m) => ({ ...m, [p.id]: e.target.value }))} />
-                        <button className="inline-flex items-center gap-1 rounded-lg border border-red-200 text-red-600 px-3 py-1.5 text-sm hover:bg-red-50" onClick={() => setStatus(p.id, "recusada", { motivo: motivos[p.id] || "" })}><X className="w-4 h-4" /> Recusar</button>
-                      </div>
-                    </>
-                  )}
+            {tarefasCuradoria.map((t) => (
+              <div key={t.id} className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-slate-800 font-medium flex-1 min-w-0">{t.nome}</span>
+                  <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500">{t.area}</span>
+                  <span className="font-mono text-xs text-slate-500 whitespace-nowrap">{t.horas} h</span>
+                </div>
+                {t.cliente_nome && <div className="text-xs text-slate-400 mt-0.5">origem: {t.cliente_nome}</div>}
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <select
+                    className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs flex-1 min-w-[180px] outline-none focus:border-teal-500"
+                    value={alvoFunc[t.id] || ""}
+                    onChange={(e) => setAlvoFunc((s) => ({ ...s, [t.id]: e.target.value }))}
+                  >
+                    <option value="">Escolha a funcionalidade…</option>
+                    {base.funcionalidades.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                  </select>
+                  <button className={btnTeal} disabled={!alvoFunc[t.id]} onClick={() => atribuirTarefa(t, alvoFunc[t.id])}><Check className="w-4 h-4" /> Vincular</button>
+                  <button className="inline-flex items-center gap-1 rounded-lg border border-red-200 text-red-600 px-3 py-1.5 text-sm hover:bg-red-50" onClick={() => descartarTarefa(t.id)}><X className="w-4 h-4" /> Descartar</button>
                 </div>
               </div>
             ))}
