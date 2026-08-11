@@ -70,10 +70,12 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
     return base.funcionalidades.filter((f) => ids.has(f.id));
   }, [d, diag.respostas, base]);
 
-  // Ordenações salvas: por área (ordem das funcionalidades) e por funcionalidade (ordem das tarefas).
+  // Ordenações salvas: por área (sequência das áreas), por área→funcionalidades e por funcionalidade→tarefas.
+  const [areaOrder, setAreaOrder] = useState([]); // [areaKey...]
   const [funcOrder, setFuncOrder] = useState({}); // { areaKey: [funcKey...] }
   const [taskOrder, setTaskOrder] = useState({}); // { funcKey: [taskId...] }
   useEffect(() => {
+    setAreaOrder(d?.planoAreaOrder || []);
     setFuncOrder(d?.planoFuncOrder || {});
     setTaskOrder(d?.planoTaskOrder || {});
     setSaved(false);
@@ -114,14 +116,26 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
       const byId = new Map(a.funcs.map((g) => [g.funcKey, g]));
       a.funcs = [...salvos, ...rest].map((fk) => byId.get(fk));
     }
-    // 3) ordena áreas: mais crítica primeiro; avulsas por último
+    // 3) ordena áreas: sequência salva primeiro; depois mais crítica; avulsas por último
     const areaCrit = (a) => a.avulsa ? 999 : Math.min(...a.funcs.map((g) => idxVer(g.veredito)));
-    return [...areaMap.values()].sort((a, b) => areaCrit(a) - areaCrit(b));
-  }, [itensBase, funcOrder, taskOrder]);
+    const lista = [...areaMap.values()];
+    const salvasA = (areaOrder || []).filter((ak) => lista.some((a) => a.areaKey === ak));
+    const restA = lista.filter((a) => !salvasA.includes(a.areaKey)).sort((a, b) => areaCrit(a) - areaCrit(b)).map((a) => a.areaKey);
+    const byA = new Map(lista.map((a) => [a.areaKey, a]));
+    return [...salvasA, ...restA].map((ak) => byA.get(ak));
+  }, [itensBase, funcOrder, taskOrder, areaOrder]);
 
-  // ---- Drag & drop em dois níveis (funcionalidade dentro da área, tarefa dentro da funcionalidade) ----
+  // ---- Drag & drop em três níveis (área, funcionalidade dentro da área, tarefa dentro da funcionalidade) ----
+  const dragArea = useRef(null); // { index }
   const dragFunc = useRef(null); // { areaKey, index }
   const dragTask = useRef(null); // { funcKey, index }
+  const dropArea = (to, areas) => {
+    const src = dragArea.current; dragArea.current = null;
+    if (!src || src.index === to) return;
+    const ids = areas.map((a) => a.areaKey);
+    const [m] = ids.splice(src.index, 1); ids.splice(to, 0, m);
+    setAreaOrder(ids); setSaved(false);
+  };
   const dropFunc = (areaKey, to, funcs) => {
     const src = dragFunc.current; dragFunc.current = null;
     if (!src || src.areaKey !== areaKey || src.index === to) return;
@@ -138,7 +152,7 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
   };
 
   const salvar = () => {
-    saveDiag && saveDiag({ ...diag, diagnosticos: diag.diagnosticos.map((x) => (x.id === d.id ? { ...x, planoFuncOrder: funcOrder, planoTaskOrder: taskOrder } : x)) });
+    saveDiag && saveDiag({ ...diag, diagnosticos: diag.diagnosticos.map((x) => (x.id === d.id ? { ...x, planoAreaOrder: areaOrder, planoFuncOrder: funcOrder, planoTaskOrder: taskOrder } : x)) });
     setSaved(true); setTimeout(() => setSaved(false), 2500);
   };
 
@@ -217,13 +231,17 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
           </div>
 
           <p className="font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-3">
-            Arraste pela alça · funcionalidades dentro da área e tarefas dentro da funcionalidade · depois “Salvar ordem”
+            Arraste pela alça · áreas, funcionalidades dentro da área e tarefas dentro da funcionalidade · depois “Salvar ordem”
           </p>
 
           <div className="space-y-4">
-            {areaGroups.map((area) => (
+            {areaGroups.map((area, ai) => (
               <div key={area.areaKey} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                <div onDragOver={(e) => e.preventDefault()} onDrop={() => dropArea(ai, areaGroups)}
+                  className="flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-b border-slate-200">
+                  <span draggable onDragStart={() => { dragArea.current = { index: ai }; dragFunc.current = null; dragTask.current = null; }}
+                    title="Arraste para reordenar a área"
+                    className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0"><GripVertical className="w-5 h-5" /></span>
                   <span className="font-mono text-[11px] uppercase tracking-widest text-teal-800 font-semibold">{area.areaNome}</span>
                   <span className="ml-auto font-mono text-xs text-slate-400 whitespace-nowrap">{somaHoras(area.funcs.flatMap((g) => g.tasks))} h</span>
                 </div>
@@ -234,7 +252,7 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
                         className="flex items-center gap-2 mb-1.5 rounded-lg">
                         {g.avulsa
                           ? <span className="w-5 shrink-0" />
-                          : <span draggable onDragStart={() => { dragFunc.current = { areaKey: area.areaKey, index: fi }; dragTask.current = null; }}
+                          : <span draggable onDragStart={() => { dragFunc.current = { areaKey: area.areaKey, index: fi }; dragTask.current = null; dragArea.current = null; }}
                               title="Arraste para reordenar a funcionalidade nesta área"
                               className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0"><GripVertical className="w-5 h-5" /></span>}
                         {g.avulsa
@@ -247,7 +265,7 @@ export default function PlanoProjeto({ base, saveBase, diag, saveDiag, selectedI
                         {g.tasks.map((it, ti) => (
                           <div key={it.taskId} onDragOver={(e) => e.preventDefault()} onDrop={() => dropTask(g.funcKey, ti, g.tasks)}
                             className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
-                            <span draggable onDragStart={() => { dragTask.current = { funcKey: g.funcKey, index: ti }; dragFunc.current = null; }}
+                            <span draggable onDragStart={() => { dragTask.current = { funcKey: g.funcKey, index: ti }; dragFunc.current = null; dragArea.current = null; }}
                               title="Arraste para reordenar a tarefa"
                               className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0"><GripVertical className="w-5 h-5" /></span>
                             <span className="font-mono text-xs text-slate-400 w-6 text-right shrink-0">{ti + 1}</span>

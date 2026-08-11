@@ -152,31 +152,34 @@ export default function Curadoria({ base, saveBase, diag }) {
       {/* Tarefas avulsas enviadas do Plano de projeto para decidir depois. */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
         <h3 className="font-mono text-xs uppercase tracking-widest text-slate-400 mb-1">Tarefas para curar · vindas do plano de projeto ({tarefasCuradoria.length})</h3>
-        <p className="text-xs text-slate-400 mb-3">Decida onde cada tarefa avulsa deve morar: vincule a uma funcionalidade ou descarte.</p>
+        <p className="text-xs text-slate-400 mb-3">Decida se cada tarefa entra na base oficial de uma funcionalidade (Vincular) ou não (Descartar). Quando o plano já sugeriu uma funcionalidade, ela vem pré-selecionada.</p>
         {tarefasCuradoria.length === 0 ? <Empty icon={ClipboardCheck} title="Nenhuma tarefa pendente" hint="Tarefas marcadas como “mandar para curadoria” no Plano de projeto aparecem aqui." />
           : <div className="space-y-2">
-            {tarefasCuradoria.map((t) => (
+            {tarefasCuradoria.map((t) => {
+              const alvo = alvoFunc[t.id] ?? t.funcId ?? "";
+              return (
               <div key={t.id} className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm text-slate-800 font-medium flex-1 min-w-0">{t.nome}</span>
                   <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500">{t.area}</span>
                   <span className="font-mono text-xs text-slate-500 whitespace-nowrap">{t.horas} h</span>
                 </div>
-                {t.cliente_nome && <div className="text-xs text-slate-400 mt-0.5">origem: {t.cliente_nome}</div>}
+                {t.cliente_nome && <div className="text-xs text-slate-400 mt-0.5">origem: {t.cliente_nome}{t.funcId ? ` · sugerida em: ${funcName(t.funcId)}` : ""}</div>}
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <select
                     className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs flex-1 min-w-[180px] outline-none focus:border-teal-500"
-                    value={alvoFunc[t.id] || ""}
+                    value={alvo}
                     onChange={(e) => setAlvoFunc((s) => ({ ...s, [t.id]: e.target.value }))}
                   >
                     <option value="">Escolha a funcionalidade…</option>
                     {base.funcionalidades.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
                   </select>
-                  <button className={btnTeal} disabled={!alvoFunc[t.id]} onClick={() => atribuirTarefa(t, alvoFunc[t.id])}><Check className="w-4 h-4" /> Vincular</button>
+                  <button className={btnTeal} disabled={!alvo} onClick={() => atribuirTarefa(t, alvo)}><Check className="w-4 h-4" /> Vincular à base</button>
                   <button className="inline-flex items-center gap-1 rounded-lg border border-red-200 text-red-600 px-3 py-1.5 text-sm hover:bg-red-50" onClick={() => descartarTarefa(t.id)}><X className="w-4 h-4" /> Descartar</button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>}
       </div>
     </div>
