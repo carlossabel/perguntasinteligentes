@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { FileText, Copy, Check, Edit3, Save, RotateCcw, Clock, ListChecks, Pencil, Paperclip, Plus, X } from "lucide-react";
+import { FileText, Copy, Check, Edit3, Save, RotateCcw, Pencil, Paperclip, Plus, X } from "lucide-react";
 import { VEREDITOS, VEREDITO_ORDER, fmtDate, tipoAnexo, uid, btnTeal, btnGhost, VeredictoChip, Field, Label, Empty, SectionTitle } from "../ui.jsx";
 
 function AnexoView({ a }) {
@@ -197,19 +197,12 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
     setEditMode(false); setDraft(null);
   };
 
-  // ----- Plano de implantação (tarefas cadastradas na funcionalidade) -----
-  const tarefasDe = (f) => (f?.tarefas || []);
-  const horasFunc = (f) => tarefasDe(f).reduce((s, t) => s + (Number(t.horas) || 0), 0);
-  const funcsNoRelatorio = [...new Map(linhas.map((it) => [it.f?.id, it.f]).filter(([id]) => id)).values()];
-  const horasTotais = funcsNoRelatorio.reduce((s, f) => s + horasFunc(f), 0);
-
   const copiar = () => {
     let t = `RELATÓRIO DE ADERÊNCIA\nCliente: ${d.cliente_nome}\nEscopo: ${escopoLabel(d)}\nData: ${fmtDate(d.criado_em)}\n\n`;
     t += `DADOS DA EMPRESA\n  Nome: ${d.cliente_nome}\n`;
     campos.forEach((c) => (t += `  ${c.label}: ${dadosEmpresa[c.id]}\n`));
     t += `\n`;
     t += sinteseView + "\n";
-    if (horasTotais > 0) t += `Esforço de implantação estimado: ${horasTotais} h\n`;
     if (matFaixa) t += `Maturidade do negócio: ${matFaixa.l} (${maturidade}/100)\n`;
     t += `\nResumo: rever ${dados.contagem.rever} · não atende ${dados.contagem.gap} · customização ${dados.contagem.custom} · parcial ${dados.contagem.parcial} · parceira ${dados.contagem.parceira} · atende ${dados.contagem.atende} · já ok ${dados.contagem.ok}\n`;
     ["rever", "gap", "custom", "parcial", "parceira", "atende", "ok"].forEach((v) => { if (notas[v]) t += `Nota (${VEREDITOS[v].label}): ${notas[v]}\n`; });
@@ -222,11 +215,6 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
       const hoje = it.r?.texto_outro ? `Outro: ${it.r.texto_outro}` : it.o?.texto;
       t += `\n• ${it.f?.nome} [${VEREDITOS[it.veredito].short}]\n  Hoje: ${it.p?.texto} → ${hoje}\n  Atendemos: ${atendeView(it)}\n`;
       if (it.r?.anexos?.length) t += `  Anexos: ${it.r.anexos.map((a) => a.nome).join(", ")}\n`;
-      const tks = tarefasDe(it.f);
-      if (tks.length) {
-        t += `  Plano de implantação (${horasFunc(it.f)} h):\n`;
-        tks.forEach((tk) => (t += `    - ${tk.nome} · ${tk.horas} h · ${tk.area}\n`));
-      }
     });
     if (obsView.trim()) t += `\nOBSERVAÇÕES\n${obsView}\n`;
     if (anexosIniciais.length) {
@@ -289,9 +277,6 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
 
       <div className="mb-5">
         {sinteseView && <p className="text-sm text-slate-600 leading-relaxed">{sinteseView}</p>}
-        {horasTotais > 0 && (
-          <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest text-slate-500"><Clock className="w-3.5 h-3.5" /> Esforço de implantação estimado: {horasTotais} h</p>
-        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
@@ -327,7 +312,6 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
               <span className="font-semibold text-slate-900">{card.titulo}</span>
               {card.manual && <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 border border-slate-200 rounded px-1.5 py-0.5">manual</span>}
               <div className="ml-auto flex items-center gap-2">
-                {!card.manual && card.f && horasFunc(card.f) > 0 && <span className="inline-flex items-center gap-1 font-mono text-[11px] text-slate-400"><Clock className="w-3 h-3" />{horasFunc(card.f)} h</span>}
                 {lineEdit !== card.key && <button onClick={() => abrirLinha(card)} className="text-slate-300 hover:text-teal-600" title="Editar card"><Pencil className="w-4 h-4" /></button>}
                 {card.manual && <button onClick={() => removerLinhaExtra(card.id)} className="text-slate-300 hover:text-red-600" title="Remover card"><X className="w-4 h-4" /></button>}
               </div>
@@ -378,20 +362,6 @@ export default function Relatorio({ base, diag, saveDiag, selectedId, setSelecte
                   <div className="p-4">
                     <div className="font-mono text-[11px] uppercase tracking-widest text-teal-600 mb-1">Como podemos atender</div>
                     <div className="text-sm text-slate-700 whitespace-pre-wrap">{card.atende}</div>
-                    {!card.manual && card.f && tarefasDe(card.f).length > 0 && (
-                      <div className="mt-3 border-t border-slate-100 pt-2">
-                        <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-400 mb-1.5"><Clock className="w-3 h-3" /> Plano de implantação · {horasFunc(card.f)} h</div>
-                        <ul className="space-y-1">
-                          {tarefasDe(card.f).map((tk) => (
-                            <li key={tk.id} className="flex items-center gap-2 text-xs text-slate-600">
-                              <span className="flex-1">{tk.nome}</span>
-                              <span className="font-mono text-slate-400 whitespace-nowrap">{tk.horas} h</span>
-                              <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-500 whitespace-nowrap">{tk.area}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                   </div>
                 </div>
                 {card.nota ? (
